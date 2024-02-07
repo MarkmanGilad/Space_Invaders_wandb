@@ -83,7 +83,7 @@ def main ():
         "decay": epsiln_decay,
         "gamma": 0.99,
         "batch_size": batch_size, 
-        "C": C
+        "C": C,
         "Model":str(player.DQN)
         }
     )
