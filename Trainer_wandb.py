@@ -76,14 +76,14 @@ def main ():
         "name": f"Space_invaders {num}",
         "checkpoint": checkpoint_path,
         "learning_rate": learning_rate,
-        "architecture": "FNN 128, 256, 512ת128, 64, 4",
+        "architecture": "FNN 128, 256, 512,128, 64, 4",
         "Schedule": "5000, 10000, 15000, 20000 gamma=0.5",
         "epochs": ephocs,
         "start_epoch": start_epoch,
         "decay": epsiln_decay,
         "gamma": 0.99,
         "batch_size": batch_size, 
-        "C": C,
+        "C": C
         "Model":str(player.DQN)
         }
     )
