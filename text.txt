@@ -1,0 +1,19 @@
+7: DQN 128 128
+8: DQN 128 64
+1: 128 64 death -0
+2: DQN 64
+checkpoint1: 128 128 64 death -0 gamma 0.9
+checkpoint2: gamma 0.95 DQN 128, 128, 64 death-=3
+checkpoint11 -> checkpoint1
+checkpoint12 -> checkpoint12
+checkpoint13: 128, 258, 128, 64 death-=3 gamma 0.99
+checkpoint14: 128, 258, 128, 64 death-=3 gamma 0.99 LR=0.001
+checkpoint15: 128, 64 gamma 0.99 LR=0.001 death-=3
+checkpoint16: 128, 256, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 20000 death -0 c = 10
+checkpoint17: 128, 256, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 20000 death -0 c = 3
+checkpoint18: 128, 256, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 20000 death -3 c = 3
+checkpoint19: 128, 256, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 20000 death -3 c = 3 decay = 5000
+checkpoint20: 128, 256, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 death -3 c = 3 decay = 20000
+checkpoint21: 128, 256, 512, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 death -3 c = 3 decay = 20000
+checkpoint22: 128, 256, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 death -3 c = 3 decay = 20000
+checkpoint22: 128, 256, 512, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000, 20000 death -3 c = 3 decay = 20000
