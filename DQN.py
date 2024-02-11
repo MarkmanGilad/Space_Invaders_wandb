@@ -41,7 +41,7 @@ class DQN (nn.Module):
         return x
     
     def loss (self, Q_values, rewards, Q_next_Values, dones ):
-        Q_new = rewards + gamma * Q_next_Values * (1- dones)
+        Q_new = rewards.to(self.device) + gamma * Q_next_Values * (1- dones.to(self.device))
         return self.MSELoss(Q_values, Q_new)
     
     def load_params(self, path):
@@ -54,4 +54,4 @@ class DQN (nn.Module):
         return copy.deepcopy(self)
 
     def __call__(self, states):
-        return self.forward(states)
+        return self.forward(states).to(self.device)

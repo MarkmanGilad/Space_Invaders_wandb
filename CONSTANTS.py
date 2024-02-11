@@ -28,6 +28,6 @@ ENEMY_SHOOTS_FACTOR = 2
 SPACESHIP_URL = "img/spacecraft.png"
 ENEMY_URL = "img/space_ship.png"
 
-epsilon_start, epsilon_final, epsiln_decay = 1, 0.01, 20000
+epsilon_start, epsilon_final, epsiln_decay = 1, 0.01, 10000
 
 MIN_BUFFER = 5000

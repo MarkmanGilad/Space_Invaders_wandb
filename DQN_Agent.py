@@ -6,8 +6,8 @@ from CONSTANTS import *
 
 
 class DQN_Agent:
-    def __init__(self, parametes_path = None, train = True, env= None):
-        self.DQN = DQN()
+    def __init__(self, parametes_path = None, train = True, env= None, devive = torch.device('cpu')):
+        self.DQN = DQN(device=devive)
         if parametes_path:
             self.DQN.load_params(parametes_path)
         self.train = train

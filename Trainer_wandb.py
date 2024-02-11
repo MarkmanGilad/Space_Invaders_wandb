@@ -27,10 +27,14 @@ def main ():
     write (header_surf, "Score: " + str(env.score) + " Ammunition: " + str(env.spaceship.ammunition))
 
     best_score = 0
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
 
     ####### params ############
-    player = DQN_Agent()
-    player_hat = DQN_Agent()
+    player = DQN_Agent(devive=device)
+    player_hat = DQN_Agent(devive=device)
     player_hat.DQN = player.DQN.copy()
     batch_size = 50
     buffer = ReplayBuffer(path=None)
@@ -43,11 +47,11 @@ def main ():
     scores, losses, avg_score = [], [], []
     optim = torch.optim.Adam(player.DQN.parameters(), lr=learning_rate)
     # scheduler = torch.optim.lr_scheduler.StepLR(optim,100000, gamma=0.50)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 15000*1000, 20000*1000], gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 15000*1000, 20000*1000, 25000*1000, 30000*1000], gamma=0.5)
     step = 0
 
     ######### checkpoint Load ############
-    num = 23
+    num = 103
     checkpoint_path = f"Data/checkpoint{num}.pth"
     buffer_path = f"Data/buffer{num}.pth"
     if os.path.exists(checkpoint_path):
@@ -63,9 +67,9 @@ def main ():
         avg_score = checkpoint['avg_score']
     player.DQN.train()
     player_hat.DQN.eval()
-
+    
     ################# Wandb.init #####################
-    # checkpoint22: 128, 256, 128, 64 death-=3 gamma 0.99 LR = 0.00001 Schedule: 5000, 10000, 15000 death -3 c = 3 decay = 20000
+    
     wandb.init(
         # set the wandb project where this run will be logged
         project="Space_Invaders",
@@ -76,17 +80,18 @@ def main ():
         "name": f"Space_invaders {num}",
         "checkpoint": checkpoint_path,
         "learning_rate": learning_rate,
-        "architecture": "FNN 128, 256, 512,128, 64, 4",
-        "Schedule": "5000, 10000, 15000, 20000 gamma=0.5",
+        "Schedule": f'{str(scheduler.milestones)} gamma={str(scheduler.gamma)}',
         "epochs": ephocs,
         "start_epoch": start_epoch,
         "decay": epsiln_decay,
         "gamma": 0.99,
         "batch_size": batch_size, 
         "C": C,
-        "Model":str(player.DQN)
+        "Model":str(player.DQN),
+        "device": str(device)
         }
     )
+    # wandb.config.update({"Model":str(player.DQN)}, allow_val_change=True)
     
     #################################
 
