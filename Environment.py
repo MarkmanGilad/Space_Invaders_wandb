@@ -22,12 +22,12 @@ class Environment:
         self.ground = Ground()
         self.ground_Group = pygame.sprite.GroupSingle(self.ground)
 
-    def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120):
+    def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
         row , col = 3 , 6
         for r in range (row):
             for c in range (col):
-                enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group))
+                enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
         return enemy_Group
     
     def update (self):
@@ -45,11 +45,7 @@ class Environment:
         self.enemy_bullets_Group.draw(surface)
 
     def restart (self, add_speed = 0, add_shoot_factor = 0, new_game = True):
-        self.enemy_Group = self.make_enemy_group()
-        self.spaceship.ammunition = MAX_AMMUNITION
-        self.bullets_Group.empty()
-        self.enemy_bullets_Group.empty()
-        
+                
         if new_game:
             # width =  random.randint(50, WIDTH-50)
             width = WIDTH // 2 - 30
@@ -57,12 +53,15 @@ class Environment:
             Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
             self.score = 0
             self.level = 1
+            self.enemy_Group = self.make_enemy_group()
         else:
             self.level += 1
-            for enemy in self.enemy_Group:
-                enemy.speed_x = int(ENEMY_START_SPEED + self.level/2)
             Enemy.shoots_factor += add_shoot_factor
-            
+            self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
+        
+        self.spaceship.ammunition = MAX_AMMUNITION
+        self.bullets_Group.empty()
+        self.enemy_bullets_Group.empty()    
         
         
     def move (self, action):

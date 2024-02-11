@@ -6,12 +6,12 @@ from Bullet import Bullet
 class Enemy (pygame.sprite.Sprite):
     shoots_factor = ENEMY_SHOOTS_FACTOR
     speed_y = 40
-    def __init__(self, img, pos, Enemy_bullets_Group) -> None:
+    def __init__(self, img, pos, Enemy_bullets_Group, speed = ENEMY_START_SPEED) -> None:
         super().__init__()
         self.image = img
         self.rect = self.image.get_rect(topleft = pos)
         self.mask = pygame.mask.from_surface(self.image)
-        self.speed_x = ENEMY_START_SPEED
+        self.speed_x = speed
         self.Enemy_bullets_Group = Enemy_bullets_Group
 
     def update(self) -> None:
