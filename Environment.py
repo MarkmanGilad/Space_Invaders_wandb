@@ -45,22 +45,25 @@ class Environment:
         self.enemy_bullets_Group.draw(surface)
 
     def restart (self, add_speed = 0, add_shoot_factor = 0, new_game = True):
-        if new_game:
-            # width =  random.randint(50, WIDTH-50)
-            width = WIDTH // 2 - 30
-            self.spaceship.rect.midbottom = ( width, HEIGHT - 100)
-            Enemy.speed_add = 0
-            Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
-            self.score = 0
-            self.level = 1
-        else:
-            Enemy.speed_add += add_speed
-            Enemy.shoots_factor += add_shoot_factor
-            self.level += 1
         self.enemy_Group = self.make_enemy_group()
         self.spaceship.ammunition = MAX_AMMUNITION
         self.bullets_Group.empty()
         self.enemy_bullets_Group.empty()
+        
+        if new_game:
+            # width =  random.randint(50, WIDTH-50)
+            width = WIDTH // 2 - 30
+            self.spaceship.rect.midbottom = ( width, HEIGHT - 100)
+            Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
+            self.score = 0
+            self.level = 1
+        else:
+            self.level += 1
+            for enemy in self.enemy_Group:
+                enemy.speed_x = int(ENEMY_START_SPEED + self.level/2)
+            Enemy.shoots_factor += add_shoot_factor
+            
+        
         
     def move (self, action):
         reward = 0
@@ -75,7 +78,7 @@ class Environment:
         reward += self.hits()
         if self.is_end_of_stage():
             reward += 0
-            self.restart(add_speed=0.5, add_shoot_factor=0.1, new_game=False)
+            self.restart(add_speed=1, add_shoot_factor=0.1, new_game=False)
         self.score += reward
         done = self.is_end_of_Game()
         if done:
