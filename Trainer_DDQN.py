@@ -51,7 +51,7 @@ def main ():
     step = 0
 
     ######### checkpoint Load ############
-    num = 200
+    num = 301
     checkpoint_path = f"Data/checkpoint{num}.pth"
     buffer_path = f"Data/buffer{num}.pth"
     resume_wandb = False
@@ -79,7 +79,7 @@ def main ():
         id=f'Space_invaders {num}',
         # track hyperparameters and run metadata
         config={
-        "name": f"Space_invaders {num}",
+        "name": f"Space_invaders DDQN {num}",
         "checkpoint": checkpoint_path,
         "learning_rate": learning_rate,
         "Schedule": f'{str(scheduler.milestones)} gamma={str(scheduler.gamma)}',
@@ -139,7 +139,9 @@ def main ():
             ############## Train ################
             states, actions, rewards, next_states, dones = buffer.sample(batch_size)
             Q_values = player.Q(states, actions)
-            next_actions, Q_hat_Values = player_hat.get_Actions_Values(next_states)
+            next_actions, _ = player.get_Actions_Values(next_states)
+            Q_hat_Values = player_hat.Q(next_states, next_actions)
+
 
             loss = player.DQN.loss(Q_values, rewards, Q_hat_Values, dones)
             loss.backward()

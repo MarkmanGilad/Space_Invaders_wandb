@@ -63,7 +63,6 @@ class Environment:
         self.bullets_Group.empty()
         self.enemy_bullets_Group.empty()    
         
-        
     def move (self, action):
         reward = 0
         if action == 1:

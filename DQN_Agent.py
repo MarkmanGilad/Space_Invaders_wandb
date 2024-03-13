@@ -40,7 +40,7 @@ class DQN_Agent:
         return max_indices.reshape(-1,1), max_values.reshape(-1,1)
 
     def Q (self, states, actions):
-        Q_values = self.DQN(states)
+        Q_values = self.DQN(states) # try: Q_values = self.DQN(states).gather(dim=1, actions) ; check if shape of actions is [-1, 1] otherwise dim=0
         rows = torch.arange(Q_values.shape[0]).reshape(-1,1)
         cols = actions.reshape(-1,1)
         return Q_values[rows, cols]
@@ -59,6 +59,15 @@ class DQN_Agent:
 
     def load_params (self, path):
         self.DQN.load_params(path)
+
+    def fix_update (self, dqn, tau=0.001):
+        self.DQN.load_state_dict(dqn.state_dict())
+
+    def soft_update (self, dqn, tau=0.001):
+        with torch.no_grad():
+            for dqn_hat_param, dqn_param in zip(self.DQN.parameters(), dqn.parameters()):
+                dqn_hat_param.data.copy_(tau * dqn_param.data + (1.0 - tau) * dqn_hat_param.data)
+
 
     def __call__(self, events= None, state=None):
         return self.get_Action(state)
