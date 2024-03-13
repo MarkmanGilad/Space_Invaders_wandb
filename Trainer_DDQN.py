@@ -1,3 +1,4 @@
+#region ############### imports ###################
 import pygame
 import torch
 from CONSTANTS import *
@@ -6,33 +7,31 @@ from DQN_Agent import DQN_Agent
 from ReplayBuffer import ReplayBuffer
 import os
 import wandb
+#endregion
 
 def main ():
-
+    #region ################ init Surface of pyGame #################
     pygame.init()
-
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption('Space')
     # clock = pygame.time.Clock()
-
     header_surf = pygame.Surface((WIDTH, 100))
     main_surf = pygame.Surface((WIDTH, HEIGHT - 100))
     header_surf.fill(BLUE)
     main_surf.fill(LIGHTGRAY)
-
     env = Environment(surface=main_surf)
-
     screen.blit(header_surf, (0,0))
     screen.blit(main_surf, (0,100))
     write (header_surf, "Score: " + str(env.score) + " Ammunition: " + str(env.spaceship.ammunition))
+    #endregion
 
+    #region ################ params and models ######################
     best_score = 0
     if torch.cuda.is_available():
         device = torch.device('cuda')
     else:
         device = torch.device('cpu')
-
-    ####### params and models ############
+    
     player = DQN_Agent(devive=device)
     player_hat = DQN_Agent(devive=device)
     player_hat.DQN = player.DQN.copy()
@@ -49,9 +48,11 @@ def main ():
     # scheduler = torch.optim.lr_scheduler.StepLR(optim,100000, gamma=0.50)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 15000*1000, 20000*1000, 25000*1000, 30000*1000], gamma=0.5)
     step = 0
+    
+    #endregion
 
-    ######### checkpoint Load ############
-    num = 301
+    #region ################ checkpoint Load ########################
+    num = 400
     checkpoint_path = f"Data/checkpoint{num}.pth"
     buffer_path = f"Data/buffer{num}.pth"
     resume_wandb = False
@@ -69,9 +70,9 @@ def main ():
         avg_score = checkpoint['avg_score']
     player.DQN.train()
     player_hat.DQN.eval()
+    #endregion
     
-    ################# Wandb.init #####################
-    
+    #region ################ Wandb.init #############################
     wandb.init(
         # set the wandb project where this run will be logged
         project="Space_Invaders",
@@ -96,15 +97,19 @@ def main ():
     )
     # wandb.config.update({"Model":str(player.DQN)}, allow_val_change=True)
     
-    #################################
+    #endregion 
 
+    #region ################ Main Loop ##############################
     for epoch in range(start_epoch, ephocs):
+        
+        #region ########### Episode loop - one game loop ############
         env.restart()
         end_of_game = False
         state = env.state()
         while not end_of_game:
             print (step, end='\r')
             step += 1
+            #region ############# Play and Sample Environement #########################
             main_surf.fill(LIGHTGRAY)
             header_surf.fill(BLUE)
             events = pygame.event.get()
@@ -112,7 +117,6 @@ def main ():
                 if event.type == pygame.QUIT:
                     return
             
-            ############## Sample Environement #########################
             action = player.get_Action(state=state, epoch=epoch)
             reward, done = env.move(action=action)
             next_state = env.state()
@@ -135,8 +139,9 @@ def main ():
             
             if len(buffer) < MIN_BUFFER:
                 continue
-    
-            ############## Train ################
+            # endregion
+
+            #region ############# Train ################
             states, actions, rewards, next_states, dones = buffer.sample(batch_size)
             Q_values = player.Q(states, actions)
             next_actions, _ = player.get_Actions_Values(next_states)
@@ -148,13 +153,18 @@ def main ():
             optim.step()
             optim.zero_grad()
             scheduler.step()
-
+            #endregion
+        
+        #endregion
+        
+        #region ########### Update target network ###################
         if epoch % C == 0:
-            # player_hat.DQN.load_state_dict(player.DQN.state_dict())
             player_hat.fix_update(dqn=player.DQN)
             # player_hat.soft_update(dqn=player.DQN, tau=tau)
-
-        #########################################
+            # player_hat.DQN.load_state_dict(player.DQN.state_dict())
+        #endregion
+            
+        #region ########### Printing and saving #####################
         print (f'epoch: {epoch} loss: {loss:.7f} LR: {scheduler.get_last_lr()} step: {step} ' \
                f'score: {env.score} level: {env.level} best_score: {best_score}')
         step = 0
@@ -185,13 +195,17 @@ def main ():
             }
             torch.save(checkpoint, checkpoint_path)
             torch.save(buffer, buffer_path)
+        #endregion
+                
+    #endregion
 
 
+# region ################### write on surface function ##############
 def write (surface, text, pos = (50, 20)):
     font = pygame.font.SysFont("arial", 36)
     text_surface = font.render(text, True, WHITE, BLUE)
     surface.blit(text_surface, pos)
-
+# endregion
 
         
 if __name__ == "__main__":
