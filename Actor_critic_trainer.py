@@ -1,0 +1,190 @@
+import pygame
+import torch
+from CONSTANTS import *
+from Environment import Environment
+from ActorCritic_Agent import ActorCriticAgent
+
+import os
+import wandb
+
+def main ():
+
+    pygame.init()
+
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption('Space')
+    # clock = pygame.time.Clock()
+
+    header_surf = pygame.Surface((WIDTH, 100))
+    main_surf = pygame.Surface((WIDTH, HEIGHT - 100))
+    header_surf.fill(BLUE)
+    main_surf.fill(LIGHTGRAY)
+
+    env = Environment(surface=main_surf)
+
+    screen.blit(header_surf, (0,0))
+    screen.blit(main_surf, (0,100))
+    write (header_surf, "Score: " + str(env.score) + " Ammunition: " + str(env.spaceship.ammunition))
+
+    best_score = 0
+    if torch.cuda.is_available():
+        device = torch.device('cuda')
+    else:
+        device = torch.device('cpu')
+
+    ####### params and models ############
+    player = ActorCriticAgent()
+    learning_rate = 0.001
+    gamma = 0.95
+    ephocs = 30000
+    start_epoch = 0
+    loss = torch.tensor(0)
+    avg = 0
+    scores, losses, avg_score = [], [], []
+    optim = torch.optim.Adam(player.policy_value.parameters(), lr=learning_rate)
+    scheduler = torch.optim.lr_scheduler.StepLR(optim,10000, gamma=0.95)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 15000*1000, 20000*1000, 25000*1000, 30000*1000], gamma=gamma)
+    step = 0
+
+    ######### checkpoint Load ############
+    num = 500
+    checkpoint_path = f"Data/Actor_Critic{num}.pth"
+    resume_wandb = False
+    if os.path.exists(checkpoint_path):
+        resume_wandb = True
+        checkpoint = torch.load(checkpoint_path)
+        start_epoch = checkpoint['epoch']+1
+        player.policy_value.load_state_dict(checkpoint['model_state_dict'])
+        optim.load_state_dict(checkpoint['optimizer_state_dict'])
+        scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+        losses = checkpoint['loss']
+        scores = checkpoint['scores']
+        avg_score = checkpoint['avg_score']
+    player.policy_value.train()
+
+    
+    ################# Wandb.init #####################
+    
+    wandb.init(
+        # set the wandb project where this run will be logged
+        project="Space_Invaders",
+        resume=resume_wandb, 
+        id=f'Space_invaders {num}',
+        # track hyperparameters and run metadata
+        config={
+        "name": f"Space_invaders {num}",
+        "checkpoint": checkpoint_path,
+        "learning_rate": learning_rate,
+        # "Schedule": f'{str(scheduler.milestones)} gamma={str(scheduler.gamma)}',
+        "epochs": ephocs,
+        "start_epoch": start_epoch,
+        "gamma": gamma,
+        "Model":str(player.policy_value),
+        "device": str(device)
+        }
+    )
+    # wandb.config.update({"Model":str(player.DQN)}, allow_val_change=True)
+    
+    #################################
+
+    for epoch in range(start_epoch, ephocs):
+        env.restart()
+        done = False
+        state = env.state()
+        while not done:
+            print (step, end='\r')
+            step += 1
+            main_surf.fill(LIGHTGRAY)
+            header_surf.fill(BLUE)
+            events = pygame.event.get()
+            for event in events:
+                if event.type == pygame.QUIT:
+                    return
+            
+            ############## Sample Environement #########################
+            # Agent's move + Forward
+            action, action_prob, value = player.get_action_and_value(state)
+            
+            # Step in the environment with the agent's action
+            reward, done = env.move(action=action)
+            next_state = env.state()
+
+            # Get next value, using V(s_{t+1}) * (1 - done) to handle terminal states
+            with torch.no_grad():
+                _, next_value = player.policy_value(next_state)
+
+            delta = reward + gamma * next_value * (1 - done) - value
+
+            if done:
+                best_score = max(best_score, env.score)
+            state = next_state
+
+            write(header_surf,"Level: " + str(env.level), (200, 20))
+            write(header_surf, "epoch: " + str (epoch), (400, 20))
+            write(header_surf, "Score: " + str(env.score), (200, 60))
+            write(header_surf, "Ammunition: " + str(env.spaceship.ammunition),(400, 60))
+            screen.blit(header_surf, (0,0))
+            screen.blit(main_surf, (0,100))
+            pygame.display.update()
+            # clock.tick(FPS)
+            
+            ########### compute loss ###########
+            # Actor loss - forward
+            actor_loss = -torch.log(action_prob) * delta.detach()
+            
+            # Critic loss - forward
+            critic_loss = delta ** 2     # MSELoss
+            
+            # Total loss for this step - forward
+            loss = actor_loss + critic_loss
+
+            # Backward
+            optim.zero_grad()
+            loss.backward()
+            optim.step()
+        
+        scheduler.step()
+            
+
+        ######################## ploting and logging ####################
+        print (f'epoch: {epoch} loss: {loss.item():.7f} LR: {scheduler.get_last_lr()} step: {step} ' \
+               f'score: {env.score} level: {env.level} best_score: {best_score}')
+        step = 0
+        if epoch % 10 == 0:
+            scores.append(env.score)
+            losses.append(loss.item())
+
+        avg = (avg * (epoch % 10) + env.score) / (epoch % 10 + 1)
+        if (epoch + 1) % 10 == 0:
+            avg_score.append(avg)
+            wandb.log ({
+                "score": env.score,
+                "loss": loss.item(),
+                "avg_score": avg
+            })
+            print (f'average score last 10 games: {avg} ')
+            avg = 0
+
+        if epoch % 1000 == 0 and epoch > 0:
+            checkpoint = {
+                'epoch': epoch,
+                'model_state_dict': player.policy_value.state_dict(),
+                'optimizer_state_dict': optim.state_dict(),
+                'scheduler_state_dict': scheduler.state_dict(),
+                'loss': losses,
+                'scores':scores,
+                'avg_score': avg_score
+            }
+            torch.save(checkpoint, checkpoint_path)
+
+    pygame.quit()
+
+def write (surface, text, pos = (50, 20)):
+    font = pygame.font.SysFont("arial", 36)
+    text_surface = font.render(text, True, WHITE, BLUE)
+    surface.blit(text_surface, pos)
+
+
+        
+if __name__ == "__main__":
+    main ()
