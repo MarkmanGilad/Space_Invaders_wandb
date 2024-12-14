@@ -1,3 +1,4 @@
+
 import pygame
 import numpy as np
 import torch
@@ -6,6 +7,7 @@ from SpaceShip import SpaceShip
 from Enemy import Enemy
 from Ground import Ground
 import random
+
 
 class Environment:
     def __init__(self, surface) -> None:

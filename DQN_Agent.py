@@ -1,9 +1,9 @@
+
 import torch
 import random
 import math
 from DQN import DQN
 from CONSTANTS import *
-
 
 class DQN_Agent:
     def __init__(self, parametes_path = None, train = True, env= None, devive = torch.device('cpu')):
@@ -40,7 +40,7 @@ class DQN_Agent:
         return max_indices.reshape(-1,1), max_values.reshape(-1,1)
 
     def Q (self, states, actions):
-        Q_values = self.DQN(states) # try: Q_values = self.DQN(states).gather(dim=1, actions) ; check if shape of actions is [-1, 1] otherwise dim=0
+        Q_values = self.DQN(states)     # try: Q_values = self.DQN(states).gather(dim=1, actions) ; check if shape of actions is [-1, 1] otherwise dim=0
         rows = torch.arange(Q_values.shape[0]).reshape(-1,1)
         cols = actions.reshape(-1,1)
         return Q_values[rows, cols]
@@ -67,7 +67,6 @@ class DQN_Agent:
         with torch.no_grad():
             for dqn_hat_param, dqn_param in zip(self.DQN.parameters(), dqn.parameters()):
                 dqn_hat_param.data.copy_(tau * dqn_param.data + (1.0 - tau) * dqn_hat_param.data)
-
 
     def __call__(self, events= None, state=None):
         return self.get_Action(state)

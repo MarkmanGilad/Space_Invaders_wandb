@@ -1,3 +1,4 @@
+
 #region ############### imports ###################
 import pygame
 import torch
@@ -46,13 +47,14 @@ def main ():
     scores, losses, avg_score = [], [], []
     optim = torch.optim.Adam(player.DQN.parameters(), lr=learning_rate)
     # scheduler = torch.optim.lr_scheduler.StepLR(optim,100000, gamma=0.50)
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 15000*1000, 20000*1000, 25000*1000, 30000*1000], gamma=0.5)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 
+                        15000*1000, 20000*1000, 25000*1000, 30000*1000], gamma=0.5)
     step = 0
     
     #endregion
 
     #region ################ checkpoint Load ########################
-    num = 400
+    num = 300
     checkpoint_path = f"Data/checkpoint{num}.pth"
     buffer_path = f"Data/buffer{num}.pth"
     resume_wandb = False
@@ -116,7 +118,6 @@ def main ():
             for event in events:
                 if event.type == pygame.QUIT:
                     return
-            
             action = player.get_Action(state=state, epoch=epoch)
             reward, done = env.move(action=action)
             next_state = env.state()
@@ -125,7 +126,6 @@ def main ():
             if done:
                 best_score = max(best_score, env.score)
                 break
-
             state = next_state
 
             write(header_surf,"Level: " + str(env.level), (200, 20))
@@ -137,17 +137,15 @@ def main ():
             pygame.display.update()
             # clock.tick(FPS)
             
-            if len(buffer) < MIN_BUFFER:
-                continue
             # endregion
 
             #region ############# Train ################
+            if len(buffer) < MIN_BUFFER:
+                continue
             states, actions, rewards, next_states, dones = buffer.sample(batch_size)
             Q_values = player.Q(states, actions)
             next_actions, _ = player.get_Actions_Values(next_states)
             Q_hat_Values = player_hat.Q(next_states, next_actions)
-
-
             loss = player.DQN.loss(Q_values, rewards, Q_hat_Values, dones)
             loss.backward()
             optim.step()
@@ -173,6 +171,7 @@ def main ():
             losses.append(loss.item())
 
         avg = (avg * (epoch % 10) + env.score) / (epoch % 10 + 1)
+        
         if (epoch + 1) % 10 == 0:
             avg_score.append(avg)
             wandb.log ({
@@ -182,7 +181,7 @@ def main ():
             })
             print (f'average score last 10 games: {avg} ')
             avg = 0
-
+        
         if epoch % 1000 == 0 and epoch > 0:
             checkpoint = {
                 'epoch': epoch,
