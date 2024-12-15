@@ -25,7 +25,7 @@ def main ():
 
     screen.blit(header_surf, (0,0))
     screen.blit(main_surf, (0,100))
-    write (header_surf, "Score: " + str(env.score) + " Ammunition: " + str(env.spaceship.ammunition))
+    write (header_surf, f'Score: {env.score} Ammunition: {env.spaceship.ammunition}')
 
     #endregion
 
@@ -38,7 +38,7 @@ def main ():
 
     player = ActorCriticAgent()
     learning_rate = 0.001
-    gamma = 0.95
+    gamma = 0.99
     ephocs = 30000
     start_epoch = 0
     loss = torch.tensor(0)
@@ -51,7 +51,7 @@ def main ():
     #endregion
 
     #region ######## checkpoint Load ############
-    num = 500
+    num = 502
     checkpoint_path = f"Data/Actor_Critic{num}.pth"
     resume_wandb = False
     if os.path.exists(checkpoint_path):
@@ -108,8 +108,9 @@ def main ():
             for event in events:
                 if event.type == pygame.QUIT:
                     return
-            
+                        
             #region ############# Sample Environement #########################
+            
             # Agent's move + Forward
             action, action_prob, value = player.get_action_and_value(state)
             
@@ -126,15 +127,6 @@ def main ():
             if done:
                 best_score = max(best_score, env.score)
             state = next_state
-
-            write(header_surf,"Level: " + str(env.level), (200, 20))
-            write(header_surf, "epoch: " + str (epoch), (400, 20))
-            write(header_surf, "Score: " + str(env.score), (200, 60))
-            write(header_surf, "Ammunition: " + str(env.spaceship.ammunition),(400, 60))
-            screen.blit(header_surf, (0,0))
-            screen.blit(main_surf, (0,100))
-            pygame.display.update()
-            # clock.tick(FPS)
             
             #endregion
             
@@ -154,6 +146,17 @@ def main ():
             optim.step()
         
             #endregion
+
+            write(header_surf,"Level: " + str(env.level), (200, 20))
+            write(header_surf, "epoch: " + str (epoch), (400, 20))
+            write(header_surf, f"Score: {env.score:.2f}", (200, 60))
+            write(header_surf, f'Ammunition: {env.spaceship.ammunition}',(400, 60))
+            screen.blit(header_surf, (0,0))
+            screen.blit(main_surf, (0,100))
+            pygame.display.update()
+            # clock.tick(FPS)
+                
+
         # endregion
 
         scheduler.step()

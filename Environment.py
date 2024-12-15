@@ -73,6 +73,8 @@ class Environment:
             self.spaceship.move_right()
         elif action == 3:
             self.spaceship.shoot ()
+            if self.spaceship.ammunition > 0:
+                reward += 0.1 ## add reward for shooting
         self.update()
         self.draw()
         reward += self.hits()
