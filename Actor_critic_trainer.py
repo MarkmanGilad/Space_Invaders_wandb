@@ -3,32 +3,16 @@ import torch
 from CONSTANTS import *
 from Environment import Environment
 from ActorCritic_Agent import ActorCriticAgent
-
+from Graphics import Graphics
 import os
 import wandb
 
 def main ():
-
-    # region ############# init Game Graphics #############
-    pygame.init()
-
-    screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption('Space')
-    # clock = pygame.time.Clock()
-
-    header_surf = pygame.Surface((WIDTH, 100))
-    main_surf = pygame.Surface((WIDTH, HEIGHT - 100))
-    header_surf.fill(BLUE)
-    main_surf.fill(LIGHTGRAY)
-
-    env = Environment(surface=main_surf)
-
-    screen.blit(header_surf, (0,0))
-    screen.blit(main_surf, (0,100))
-    write (header_surf, f'Score: {env.score} Ammunition: {env.spaceship.ammunition}')
-
-    #endregion
-
+    
+    graphics = Graphics()
+    env = Environment(surface=graphics.main_surf)
+    num = 600
+    
     #region ###### params and models ############
     best_score = 0
     if torch.cuda.is_available():
@@ -39,19 +23,17 @@ def main ():
     player = ActorCriticAgent()
     learning_rate = 0.001
     gamma = 0.99
-    ephocs = 30000
+    epochs = 30000
     start_epoch = 0
     loss = torch.tensor(0)
     avg = 0
     scores, losses, avg_score = [], [], []
     optim = torch.optim.Adam(player.policy_value.parameters(), lr=learning_rate)
     scheduler = torch.optim.lr_scheduler.StepLR(optim,10000, gamma=0.95)
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 15000*1000, 20000*1000, 25000*1000, 30000*1000], gamma=gamma)
     step = 0
     #endregion
 
     #region ######## checkpoint Load ############
-    num = 502
     checkpoint_path = f"Data/Actor_Critic{num}.pth"
     resume_wandb = False
     if os.path.exists(checkpoint_path):
@@ -66,34 +48,12 @@ def main ():
         avg_score = checkpoint['avg_score']
     player.policy_value.train()
     #endregion
-    
-    #region ################ Wandb.init #####################
-    
-    wandb.init(
-        # set the wandb project where this run will be logged
-        project="Space_Invaders",
-        resume=resume_wandb, 
-        id=f'Space_invaders {num}',
-        # track hyperparameters and run metadata
-        config={
-        "name": f"Space_invaders {num}",
-        "checkpoint": checkpoint_path,
-        "learning_rate": learning_rate,
-        # "Schedule": f'{str(scheduler.milestones)} gamma={str(scheduler.gamma)}',
-        "epochs": ephocs,
-        "start_epoch": start_epoch,
-        "gamma": gamma,
-        "Model":str(player.policy_value),
-        "device": str(device)
-        }
-    )
-    # wandb.config.update({"Model":str(player.DQN)}, allow_val_change=True)
-    
-    #endregion
+
+    wb = WandB ("Space_Invaders", resume_wandb, num, checkpoint_path, learning_rate, epochs, start_epoch, gamma, player.policy_value, device)
     
     #region ########### training loop #####################
 
-    for epoch in range(start_epoch, ephocs):
+    for epoch in range(start_epoch, epochs):
         env.restart()
         done = False
         state = env.state()
@@ -102,12 +62,8 @@ def main ():
         while not done:
             print (step, end='\r')
             step += 1
-            main_surf.fill(LIGHTGRAY)
-            header_surf.fill(BLUE)
-            events = pygame.event.get()
-            for event in events:
-                if event.type == pygame.QUIT:
-                    return
+            graphics.clear()
+            graphics.events()
                         
             #region ############# Sample Environement #########################
             
@@ -147,36 +103,26 @@ def main ():
         
             #endregion
 
-            write(header_surf,"Level: " + str(env.level), (200, 20))
-            write(header_surf, "epoch: " + str (epoch), (400, 20))
-            write(header_surf, f"Score: {env.score:.2f}", (200, 60))
-            write(header_surf, f'Ammunition: {env.spaceship.ammunition}',(400, 60))
-            screen.blit(header_surf, (0,0))
-            screen.blit(main_surf, (0,100))
-            pygame.display.update()
+            graphics.header_writing(env=env, epoch=epoch)
+            graphics.update()
             # clock.tick(FPS)
-                
 
         # endregion
-
         scheduler.step()
         
         #region ####################### ploting and logging ####################
         print (f'epoch: {epoch} loss: {loss.item():.7f} LR: {scheduler.get_last_lr()} step: {step} ' \
-               f'score: {env.score} level: {env.level} best_score: {best_score}')
+            f'score: {env.score} level: {env.level} best_score: {best_score}')
         step = 0
         if epoch % 10 == 0:
             scores.append(env.score)
             losses.append(loss.item())
 
         avg = (avg * (epoch % 10) + env.score) / (epoch % 10 + 1)
+        
         if (epoch + 1) % 10 == 0:
             avg_score.append(avg)
-            wandb.log ({
-                "score": env.score,
-                "loss": loss.item(),
-                "avg_score": avg
-            })
+            wb.log(score=env.score, loss=loss.item(),avg=avg)
             print (f'average score last 10 games: {avg} ')
             avg = 0
 
@@ -197,12 +143,38 @@ def main ():
 
     #endregion
 
-def write (surface, text, pos = (50, 20)):
-    font = pygame.font.SysFont("arial", 36)
-    text_surface = font.render(text, True, WHITE, BLUE)
-    surface.blit(text_surface, pos)
 
+class WandB ():
+    def __init__(self, project_name, resume, num, checkpoint_path, learning_rate, epochs, start_epoch, gamma, model, device):
+        # set the wandb project where this run will be logged
+        if not resume:
+            wandb.init(
+                project=project_name,
+                resume=resume, 
+                id=f'Space_invaders {num}',
+                # track hyperparameters and run metadata
+                config={
+                "name": f"Space_invaders {num}",
+                "checkpoint": checkpoint_path,
+                "learning_rate": learning_rate,
+                # "Schedule": f'{str(scheduler.milestones)} gamma={str(scheduler.gamma)}',
+                "epochs": epochs,
+                "start_epoch": start_epoch,
+                "gamma": gamma,
+                "Model":str(model),
+                "device": str(device)
+                })
+        else:
+            wandb.config.update(allow_val_change=True)
+    
+    def log(self, score, loss, avg):
+        wandb.log ({
+                "score": score,
+                "loss": loss,
+                "avg_score": avg
+            })
 
+    
         
 if __name__ == "__main__":
     main ()
