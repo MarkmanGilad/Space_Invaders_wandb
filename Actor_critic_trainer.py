@@ -9,6 +9,7 @@ import wandb
 
 def main ():
 
+    # region ############# init Game Graphics #############
     pygame.init()
 
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -26,13 +27,15 @@ def main ():
     screen.blit(main_surf, (0,100))
     write (header_surf, "Score: " + str(env.score) + " Ammunition: " + str(env.spaceship.ammunition))
 
+    #endregion
+
+    #region ###### params and models ############
     best_score = 0
     if torch.cuda.is_available():
         device = torch.device('cuda')
     else:
         device = torch.device('cpu')
 
-    ####### params and models ############
     player = ActorCriticAgent()
     learning_rate = 0.001
     gamma = 0.95
@@ -45,8 +48,9 @@ def main ():
     scheduler = torch.optim.lr_scheduler.StepLR(optim,10000, gamma=0.95)
     # scheduler = torch.optim.lr_scheduler.MultiStepLR(optim,[5000*1000, 10000*1000, 15000*1000, 20000*1000, 25000*1000, 30000*1000], gamma=gamma)
     step = 0
+    #endregion
 
-    ######### checkpoint Load ############
+    #region ######## checkpoint Load ############
     num = 500
     checkpoint_path = f"Data/Actor_Critic{num}.pth"
     resume_wandb = False
@@ -61,9 +65,9 @@ def main ():
         scores = checkpoint['scores']
         avg_score = checkpoint['avg_score']
     player.policy_value.train()
-
+    #endregion
     
-    ################# Wandb.init #####################
+    #region ################ Wandb.init #####################
     
     wandb.init(
         # set the wandb project where this run will be logged
@@ -85,12 +89,16 @@ def main ():
     )
     # wandb.config.update({"Model":str(player.DQN)}, allow_val_change=True)
     
-    #################################
+    #endregion
+    
+    #region ########### training loop #####################
 
     for epoch in range(start_epoch, ephocs):
         env.restart()
         done = False
         state = env.state()
+        
+        #region ############ Episode = Game ##############
         while not done:
             print (step, end='\r')
             step += 1
@@ -101,7 +109,7 @@ def main ():
                 if event.type == pygame.QUIT:
                     return
             
-            ############## Sample Environement #########################
+            #region ############# Sample Environement #########################
             # Agent's move + Forward
             action, action_prob, value = player.get_action_and_value(state)
             
@@ -128,7 +136,9 @@ def main ():
             pygame.display.update()
             # clock.tick(FPS)
             
-            ########### compute loss ###########
+            #endregion
+            
+            #region ########## compute loss ###########
             # Actor loss - forward
             actor_loss = -torch.log(action_prob) * delta.detach()
             
@@ -143,10 +153,12 @@ def main ():
             loss.backward()
             optim.step()
         
-        scheduler.step()
-            
+            #endregion
+        # endregion
 
-        ######################## ploting and logging ####################
+        scheduler.step()
+        
+        #region ####################### ploting and logging ####################
         print (f'epoch: {epoch} loss: {loss.item():.7f} LR: {scheduler.get_last_lr()} step: {step} ' \
                f'score: {env.score} level: {env.level} best_score: {best_score}')
         step = 0
@@ -176,8 +188,11 @@ def main ():
                 'avg_score': avg_score
             }
             torch.save(checkpoint, checkpoint_path)
+        #endregion
 
     pygame.quit()
+
+    #endregion
 
 def write (surface, text, pos = (50, 20)):
     font = pygame.font.SysFont("arial", 36)
