@@ -12,7 +12,7 @@ def main ():
     graphics = Graphics()
     env = Environment(surface=graphics.main_surf)
     num = 600
-    
+
     #region ###### params and models ############
     best_score = 0
     if torch.cuda.is_available():
@@ -105,7 +105,7 @@ def main ():
 
             graphics.header_writing(env=env, epoch=epoch)
             graphics.update()
-            # clock.tick(FPS)
+            # graphics.tick(FPS)
 
         # endregion
         scheduler.step()
