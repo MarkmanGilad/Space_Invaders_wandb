@@ -1,3 +1,48 @@
+'''
+Actor-Critic Method with Temporal Difference (TD):
+
+The Actor-Critic method combines the policy gradient (actor) with a value function estimate (critic), using the TD error as an advantage estimate.
+
+The gradient of the expected return J(θ) with respect to the policy parameters θ is:
+
+    ∇_θ J(θ) = E[∇_θ log πθ(a_t | s_t) * δ_t]
+
+Where:
+- J(θ): The expected return (objective function to maximize).
+- πθ(a_t | s_t): The policy's probability of taking action a_t in state s_t, parameterized by θ.
+- ∇_θ log πθ(a_t | s_t): The gradient of the log-probability of the action with respect to θ.
+- δ_t (TD error): The Temporal Difference error, defined as:
+    δ_t = r_t + γ * V(s_{t+1}) - V(s_t)
+    - r_t: The immediate reward at timestep t.
+    - γ: The discount factor.
+    - V(s_t): The value function estimate for state s_t.
+    - V(s_{t+1}): The value function estimate for the next state.
+
+Loss Computation:
+1. **Actor Loss:**
+    - Encourages actions that have positive TD error:
+        actor_loss = -δ_t * log πθ(a_t | s_t)
+        δ_t -> is (πθ(a_t1 | s_t1) - V(s_t)) = G_t - baseline which is the advantage
+2. **Critic Loss:**
+    - Trains the value function V(s_t) to minimize the TD error:
+        critic_loss = δ_t^2
+
+Overall Loss:
+- Combined loss for optimization:
+    total_loss = actor_loss + β * critic_loss
+    - β: A hyperparameter controlling the relative importance of the critic loss.
+
+Backpropagation:
+- The policy (actor) is updated using the gradient:
+    ∇_θ actor_loss = -∇_θ log πθ(a_t | s_t) * δ_t
+- The value function (critic) is updated to minimize TD error, improving state value predictions.
+
+Advantages:
+- Temporal Difference (TD) learning allows the agent to update its estimates after every timestep, enabling online learning and faster updates compared to Monte Carlo methods.
+- Using TD error as the advantage reduces the variance of the policy gradient update while maintaining efficiency.
+'''
+
+
 import pygame
 import torch
 from CONSTANTS import *

@@ -6,6 +6,7 @@ from ActorCritic_Agent import ActorCriticAgent
 from Graphics import Graphics
 import os
 import wandb
+from collections import deque
 
 class TransitionBuffer:
     def __init__(self, maxlen, gamma):
@@ -16,50 +17,38 @@ class TransitionBuffer:
             maxlen (int): Maximum allowed length of the buffer.
             gamma (float): Discount factor for future rewards.
         """
-        self.buffer = []
-        self.maxlen = maxlen
+        self.buffer = deque(maxlen=maxlen)
         self.gamma = gamma
 
     def append(self, transition):
-        """Add a transition to the buffer. Remove the oldest if exceeding maxlen."""
+        """Add a transition to the buffer."""
         self.buffer.append(transition)
-        if len(self.buffer) > self.maxlen:
-            self.buffer.pop(0)
 
-    def calculate_n_step_return(self, done, player):
+    def calculate_n_step_return(self, value=0, done=False):
         """
-        Update the n-step return (G) for all transitions in the buffer.
-
+        Calculate the n-step return (G) for all transitions in the buffer.
         Args:
-            done (bool): Whether the episode has terminated.
-            player (ActorCriticAgent): The agent used to predict the value of the next state.
+            value (float): the critic value at the state after the last step.
+            done (boolean): True if end of game.
+        Returns:
+            list: A list of n-step returns (G) for each transition in the buffer.
         """
-        if not self.buffer:
-            return
-
-        if not done:  # Add the critic value for the last state if the episode is not done
-            with torch.no_grad():
-                _, next_value = player.policy_value(self.buffer[-1][0])  # next_state
-        else:
-            next_value = 0
-
-        # Calculate G (n-step return) iteratively from the last transition
-        G = next_value
-        updated_buffer = []
-        for i in reversed(range(len(self.buffer))):
-            state, action_prob, value, reward, done_flag, _ = self.buffer[i]
-            G = reward + self.gamma * G * (1 - done_flag)
-            updated_buffer.append((state, action_prob, value, reward, done_flag, G))
-
-        self.buffer = updated_buffer[::-1]
+        with torch.no_grad():
+            G = value * (1 - done)
+            n_step_returns = []
+            for transition in reversed(self.buffer):
+                _, _, reward, _ = transition
+                G = reward + self.gamma * G
+                n_step_returns.insert(0, G)
+        return n_step_returns
 
     def pop(self):
         """Remove and return the first transition from the buffer."""
-        return self.buffer.pop(0)
+        return self.buffer.popleft()
 
     def clear(self):
         """Clear the buffer."""
-        self.buffer = []
+        self.buffer.clear()
 
     def first(self):
         """Return the first transition in the buffer."""
@@ -68,6 +57,7 @@ class TransitionBuffer:
     def __len__(self):
         """Return the number of transitions in the buffer."""
         return len(self.buffer)
+
 
 class Trainer:
     def __init__(self, num, n_step=5):
@@ -133,7 +123,7 @@ class Trainer:
     def log_and_plot(self, epoch):
         """Log metrics and handle plotting at regular intervals."""
         print(
-            f'epoch: {epoch} loss: {self.loss.item():.7f} LR: {self.scheduler.get_last_lr()} step: {self.step} '
+            f'epoch: {epoch} loss: {self.loss.item():.5f} LR: {self.scheduler.get_last_lr()} step: {self.step} '
             f'score: {self.env.score} level: {self.env.level} best_score: {self.best_score}'
         )
 
@@ -151,6 +141,7 @@ class Trainer:
 
     def train(self):
         """Run the training loop for the agent."""
+        torch.autograd.set_detect_anomaly(True)
         for epoch in range(self.start_epoch, self.epochs):
             self.env.restart()
             done = False
@@ -173,24 +164,25 @@ class Trainer:
                 next_state = self.env.state()
 
                 # Store the current transition in the buffer
-                self.transition_buffer.append((state, action_prob, value, reward, done, 0))
-
-                # Update n-step returns in the buffer
-                self.transition_buffer.calculate_n_step_return(done, self.player)
-
-                state = next_state  # Move to the next state
+                self.transition_buffer.append((state, action_prob, reward, value))
+             
 
                 ########## Update after n steps ###########
-                if len(self.transition_buffer) == self.n_steps or done:
+                if len(self.transition_buffer) >= self.n_steps:
+                    
                     # Retrieve the first transition from the buffer
-                    _, first_action_prob, first_value, _, _, G = self.transition_buffer.first()
-
-                    # Calculate actor and critic losses with detach tensors
-                    delta = (G - first_value).detach()
-                    actor_loss = -torch.log(first_action_prob) * delta
+                    state_, action_prob_, reward_, value_ = self.transition_buffer.first()
+                    
+                    # Calculate the return for the first action in buffer
+                    G = self.transition_buffer.calculate_n_step_return(value=value, done=done)[0]
+                    
+                    delta = G - value_
+        
+                    # Calculate actor and critic losses 
+                    actor_loss = -torch.log(action_prob_) * delta
                     critic_loss = delta ** 2  # Mean squared error for critic loss
-                    loss = actor_loss + critic_loss
-                    # self.loss = loss.detach()
+                    loss = critic_loss + actor_loss
+                    self.loss = loss            # Assign self.loss for logging
 
                     # Perform backpropagation and optimization
                     self.optim.zero_grad()
@@ -202,7 +194,8 @@ class Trainer:
                         self.transition_buffer.pop()
                     else:
                         self.transition_buffer.clear()
-
+                
+                state = next_state  # Move to the next state
                 self.graphics.header_writing(env=self.env, epoch=epoch)
                 self.graphics.update()
             
@@ -219,28 +212,18 @@ class Trainer:
 
 
 class WandB:
-    def __init__(
-        self,
-        project_name,
-        resume,
-        num,
-        checkpoint_path,
-        learning_rate,
-        epochs,
-        start_epoch,
-        gamma,
-        model,
-        device,
-    ):
+
+    def __init__(self, project_name, resume, num, checkpoint_path,
+        learning_rate, epochs, start_epoch, gamma, model, device):
         # Initialize the WandB project for logging
         if not resume:
             wandb.init(
                 project=project_name,
                 resume=resume,
-                id=f'Space_invaders {num}',
+                id=f'{project_name} {num}',
                 # Track hyperparameters and run metadata
                 config={
-                    "name": f"Space_invaders {num}",
+                    "name": f"{project_name} {num}",
                     "checkpoint": checkpoint_path,
                     "learning_rate": learning_rate,
                     "epochs": epochs,
