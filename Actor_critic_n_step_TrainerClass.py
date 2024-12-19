@@ -9,9 +9,16 @@ import wandb
 from collections import deque
 
 class TransitionBuffer:
+    """
+    TransitionBuffer stores transitions and calculates n-step returns for training.
+    
+    Attributes:
+        buffer (deque): Stores transitions up to a maximum length.
+        gamma (float): Discount factor for future rewards.
+    """
     def __init__(self, maxlen, gamma):
         """
-        Initialize the transition buffer.
+        Initialize the TransitionBuffer.
 
         Args:
             maxlen (int): Maximum allowed length of the buffer.
@@ -21,17 +28,24 @@ class TransitionBuffer:
         self.gamma = gamma
 
     def append(self, transition):
-        """Add a transition to the buffer."""
+        """
+        Append a transition to the buffer.
+
+        Args:
+            transition (tuple): A tuple containing state, action probability, reward, and value.
+        """
         self.buffer.append(transition)
 
-    def calculate_n_step_return(self, value=0, done=False):
+    def calculate_n_step_returns(self, value=0, done=False):
         """
-        Calculate the n-step return (G) for all transitions in the buffer.
+        Calculate n-step returns from the current buffer.
+
         Args:
-            value (float): the critic value at the state after the last step.
-            done (boolean): True if end of game.
+            value (float): The value of the next state.
+            done (bool): Whether the episode is done.
+
         Returns:
-            list: A list of n-step returns (G) for each transition in the buffer.
+            list: A list of n-step returns for each transition.
         """
         with torch.no_grad():
             G = value * (1 - done)
@@ -42,36 +56,59 @@ class TransitionBuffer:
                 n_step_returns.insert(0, G)
         return n_step_returns
 
-    def pop(self):
-        """Remove and return the first transition from the buffer."""
-        return self.buffer.popleft()
+    def get_all_transitions(self):
+        """
+        Retrieve all transitions stored in the buffer.
+
+        Returns:
+            tuple: A tuple containing states, action probabilities, rewards, and values.
+        """
+        states, action_probs, rewards, values = zip(*self.buffer)
+        return states, action_probs, rewards, values
 
     def clear(self):
-        """Clear the buffer."""
+        """
+        Clear the buffer.
+        """
         self.buffer.clear()
 
-    def first(self):
-        """Return the first transition in the buffer."""
-        return self.buffer[0]
-
     def __len__(self):
-        """Return the number of transitions in the buffer."""
+        """
+        Return the length of the buffer.
+
+        Returns:
+            int: The number of transitions in the buffer.
+        """
         return len(self.buffer)
 
 
 class Trainer:
+    """
+    Trainer class for running the Actor-Critic training loop.
+
+    Attributes:
+        graphics (Graphics): Handles graphics rendering for the environment.
+        env (Environment): The game environment.
+        player (ActorCriticAgent): The actor-critic agent.
+        optim (torch.optim.Optimizer): Optimizer for updating model parameters.
+        scheduler (torch.optim.lr_scheduler): Scheduler for learning rate adjustment.
+        transition_buffer (TransitionBuffer): Stores transitions for n-step returns.
+    """
     def __init__(self, num, n_step=5):
-        """Initialize the Trainer class with environment, agent, and training parameters."""
+        """
+        Initialize the Trainer.
+
+        Args:
+            num (int): Identifier for this training run.
+            n_step (int): Number of steps for n-step returns.
+        """
         self.graphics = Graphics()
         self.env = Environment(surface=self.graphics.main_surf)
         self.num = num
 
-        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
-
-        self.player = ActorCriticAgent()  # The agent responsible for action and value predictions
-
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.player = ActorCriticAgent()
         self.init_params(n_step=n_step)
-
         self.transition_buffer = TransitionBuffer(maxlen=self.n_steps, gamma=self.gamma)
 
         self.checkpoint_path = f"Data/Actor_Critic{self.num}.pth"
@@ -92,22 +129,30 @@ class Trainer:
         )
 
     def init_params(self, n_step):
-        """Initialize training parameters."""
+        """
+        Initialize hyperparameters and optimizer settings.
+
+        Args:
+            n_step (int): Number of steps for n-step returns.
+        """
         self.best_score = 0
         self.learning_rate = 0.001
         self.gamma = 0.99
-        self.n_steps = n_step  # Number of steps for n-step return
+        self.n_steps = n_step
         self.epochs = 30000
         self.start_epoch = 0
-        self.loss = 0
-        self.avg = 0
-        self.scores, self.losses, self.avg_score = [], [], []
         self.optim = torch.optim.Adam(self.player.policy_value.parameters(), lr=self.learning_rate)
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optim, 10000, gamma=0.95)
+        self.scores = []
+        self.losses = []
+        self.avg_score = []
+        self.avg = 0
         self.step = 0
 
     def load_checkpoint(self):
-        """Load the checkpoint if it exists."""
+        """
+        Load model checkpoint if it exists.
+        """
         if os.path.exists(self.checkpoint_path):
             self.resume_wandb = True
             checkpoint = torch.load(self.checkpoint_path)
@@ -115,13 +160,88 @@ class Trainer:
             self.player.policy_value.load_state_dict(checkpoint['model_state_dict'])
             self.optim.load_state_dict(checkpoint['optimizer_state_dict'])
             self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-            self.losses = checkpoint['losses']
-            self.scores = checkpoint['scores']
-            self.avg_score = checkpoint['avg_score']
         self.player.policy_value.train()
 
+    def update_model(self, done, next_value):
+        """
+        Update the model parameters using transitions from the buffer.
+
+        Args:
+            done (bool): Whether the episode has ended.
+            next_value (float): The value of the next state.
+        """
+        states, action_probs, _, values = self.transition_buffer.get_all_transitions()
+        n_step_returns = self.transition_buffer.calculate_n_step_returns(value=next_value, done=done)
+
+        actor_loss, critic_loss = 0, 0
+        for G, value, action_prob in zip(n_step_returns, values, action_probs):
+            delta = G - value
+            actor_loss += -torch.log(action_prob) * delta.detach()
+            critic_loss += delta ** 2
+
+        loss = (actor_loss + critic_loss) / len(n_step_returns)
+        self.optim.zero_grad()
+        loss.backward()
+        self.optim.step()
+
+        self.transition_buffer.clear()  # Clear the buffer after optimization
+        self.loss = loss  # Assign loss for logging
+
+    def train(self):
+        """
+        Run the training loop for the agent.
+        """
+        torch.autograd.set_detect_anomaly(True)
+        for epoch in range(self.start_epoch, self.epochs):
+            self.env.restart()
+            done = False
+            state = self.env.state()
+            self.step = 0
+
+            while not done:
+                self.graphics.clear()
+                self.graphics.events()
+                action, action_prob, value = self.player.get_action_and_value(state)
+                reward, done = self.env.move(action=action)
+                next_state = self.env.state()
+                self.transition_buffer.append((state, action_prob, reward, value))
+                self.step += 1
+
+                if len(self.transition_buffer) >= self.n_steps or done:
+                    self.update_model(done, value)
+
+                state = next_state
+                self.graphics.header_writing(env=self.env, epoch=epoch)
+                self.graphics.update()
+
+            self.scheduler.step()
+            self.log_and_plot(epoch)
+
+            if epoch % 1000 == 0 and epoch > 0:
+                self.save_checkpoint(epoch)
+        pygame.quit()
+
+    def save_checkpoint(self, epoch):
+        """
+        Save model checkpoint.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': self.player.policy_value.state_dict(),
+            'optimizer_state_dict': self.optim.state_dict(),
+            'scheduler_state_dict': self.scheduler.state_dict(),
+        }, self.checkpoint_path)
+
     def log_and_plot(self, epoch):
-        """Log metrics and handle plotting at regular intervals."""
+        """
+        Log metrics and display training information.
+
+        Args:
+            epoch (int): Current training epoch.
+        """
         print(
             f'epoch: {epoch} loss: {self.loss.item():.5f} LR: {self.scheduler.get_last_lr()} step: {self.step} '
             f'score: {self.env.score} level: {self.env.level} best_score: {self.best_score}'
@@ -139,89 +259,33 @@ class Trainer:
             print(f'average score last 10 games: {self.avg} ')
             self.avg = 0
 
-    def train(self):
-        """Run the training loop for the agent."""
-        torch.autograd.set_detect_anomaly(True)
-        for epoch in range(self.start_epoch, self.epochs):
-            self.env.restart()
-            done = False
-            state = self.env.state()
-            self.step = 0
-            ############ Episode = Game ##############
-            while not done:
-                print(self.step, end='\r')  # Print current step for progress tracking
-                self.step += 1
-                self.graphics.clear()
-                self.graphics.events()
-
-                ############# Sample Environment #########################
-
-                # Get action and value predictions from the agent
-                action, action_prob, value = self.player.get_action_and_value(state)
-
-                # Execute the action in the environment
-                reward, done = self.env.move(action=action)
-                next_state = self.env.state()
-
-                # Store the current transition in the buffer
-                self.transition_buffer.append((state, action_prob, reward, value))
-             
-
-                ########## Update after n steps ###########
-                if len(self.transition_buffer) >= self.n_steps:
-                    
-                    # Retrieve the first transition from the buffer
-                    state_, action_prob_, reward_, value_ = self.transition_buffer.first()
-                    
-                    # Calculate the return for the first action in buffer
-                    G = self.transition_buffer.calculate_n_step_return(value=value, done=done)[0]
-                    
-                    delta = G - value_
-        
-                    # Calculate actor and critic losses 
-                    actor_loss = -torch.log(action_prob_) * delta
-                    critic_loss = delta ** 2  # Mean squared error for critic loss
-                    loss = critic_loss + actor_loss
-                    self.loss = loss            # Assign self.loss for logging
-
-                    # Perform backpropagation and optimization
-                    self.optim.zero_grad()
-                    loss.backward()
-                    self.optim.step()
-
-                    # Remove the processed transition from the buffer if not done
-                    if not done:
-                        self.transition_buffer.pop()
-                    else:
-                        self.transition_buffer.clear()
-                
-                state = next_state  # Move to the next state
-                self.graphics.header_writing(env=self.env, epoch=epoch)
-                self.graphics.update()
-            
-            self.scheduler.step()  # Update learning rate scheduler
-            
-            self.log_and_plot(epoch)
-
-            # Save checkpoint every 1000 epochs
-            if epoch % 1000 == 0 and epoch > 0:
-                self.save_checkpoint(epoch)
-            
-
-        pygame.quit()
-
 
 class WandB:
-
+    """
+    WandB class for logging metrics to Weights & Biases.
+    """
     def __init__(self, project_name, resume, num, checkpoint_path,
-        learning_rate, epochs, start_epoch, gamma, model, device):
-        # Initialize the WandB project for logging
+                 learning_rate, epochs, start_epoch, gamma, model, device):
+        """
+        Initialize the WandB logger.
+
+        Args:
+            project_name (str): Name of the project.
+            resume (bool): Whether to resume logging.
+            num (int): Run identifier.
+            checkpoint_path (str): Path to save checkpoints.
+            learning_rate (float): Learning rate for the optimizer.
+            epochs (int): Total number of epochs.
+            start_epoch (int): Starting epoch.
+            gamma (float): Discount factor.
+            model (str): Model description.
+            device (str): Device used (CPU or GPU).
+        """
         if not resume:
             wandb.init(
                 project=project_name,
                 resume=resume,
                 id=f'{project_name} {num}',
-                # Track hyperparameters and run metadata
                 config={
                     "name": f"{project_name} {num}",
                     "checkpoint": checkpoint_path,
@@ -237,16 +301,18 @@ class WandB:
             wandb.config.update(allow_val_change=True)
 
     def log(self, score, loss, avg):
-        # Log metrics to WandB
-        wandb.log(
-            {
-                "score": score,
-                "loss": loss,
-                "avg_score": avg,
-            }
-        )
+        """
+        Log training metrics to WandB.
+
+        Args:
+            score (float): Current score.
+            loss (float): Current loss.
+            avg (float): Average score.
+        """
+        wandb.log({"score": score, "loss": loss, "avg_score": avg})
 
 
 if __name__ == "__main__":
-    trainer = Trainer(num=600)
+    # Start the training process
+    trainer = Trainer(num=603, n_step=30)
     trainer.train()
