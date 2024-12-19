@@ -45,40 +45,36 @@ class TransitionBuffer:
             done (bool): Whether the episode is done.
 
         Returns:
-            list: A list of n-step returns for each transition.
+            Tensor: An array of n-step returns for each transition: (action_prob, reward, value).
         """
         with torch.no_grad():
             G = value * (1 - done)
             n_step_returns = []
             for transition in reversed(self.buffer):
-                _, _, reward, _ = transition
+                _, reward, _ = transition
                 G = reward + self.gamma * G
                 n_step_returns.insert(0, G)
-        return n_step_returns
+        return torch.tensor(n_step_returns, dtype=torch.float32)
 
     def get_all_transitions(self):
         """
-        Retrieve all transitions stored in the buffer.
+        Extracts all transitions from the buffer and returns them as tensors.
 
         Returns:
-            tuple: A tuple containing states, action probabilities, rewards, and values.
+            action_probs (torch.Tensor): Tensor of action probabilities.
+            rewards (torch.Tensor): Tensor of rewards.
+            values (torch.Tensor): Tensor of values.
         """
-        states, action_probs, rewards, values = zip(*self.buffer)
-        return states, action_probs, rewards, values
+        action_probs, rewards, values = zip(*self.buffer)
+        action_probs = torch.stack(action_probs)  
+        rewards = torch.tensor(rewards, dtype=torch.float32)  
+        values = torch.tensor(values, dtype=torch.float32)  
+        return action_probs, rewards, values
 
     def clear(self):
-        """
-        Clear the buffer.
-        """
         self.buffer.clear()
 
     def __len__(self):
-        """
-        Return the length of the buffer.
-
-        Returns:
-            int: The number of transitions in the buffer.
-        """
         return len(self.buffer)
 
 
@@ -94,7 +90,7 @@ class Trainer:
         scheduler (torch.optim.lr_scheduler): Scheduler for learning rate adjustment.
         transition_buffer (TransitionBuffer): Stores transitions for n-step returns.
     """
-    def __init__(self, num, n_step=5):
+    def __init__(self, num):
         """
         Initialize the Trainer.
 
@@ -108,7 +104,7 @@ class Trainer:
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.player = ActorCriticAgent()
-        self.init_params(n_step=n_step)
+        self.init_params()
         self.transition_buffer = TransitionBuffer(maxlen=self.n_steps, gamma=self.gamma)
 
         self.checkpoint_path = f"Data/Actor_Critic{self.num}.pth"
@@ -128,7 +124,7 @@ class Trainer:
             self.device,
         )
 
-    def init_params(self, n_step):
+    def init_params(self):
         """
         Initialize hyperparameters and optimizer settings.
 
@@ -138,7 +134,7 @@ class Trainer:
         self.best_score = 0
         self.learning_rate = 0.001
         self.gamma = 0.99
-        self.n_steps = n_step
+        self.n_steps = 5
         self.epochs = 30000
         self.start_epoch = 0
         self.optim = torch.optim.Adam(self.player.policy_value.parameters(), lr=self.learning_rate)
@@ -150,9 +146,6 @@ class Trainer:
         self.step = 0
 
     def load_checkpoint(self):
-        """
-        Load model checkpoint if it exists.
-        """
         if os.path.exists(self.checkpoint_path):
             self.resume_wandb = True
             checkpoint = torch.load(self.checkpoint_path)
@@ -170,16 +163,17 @@ class Trainer:
             done (bool): Whether the episode has ended.
             next_value (float): The value of the next state.
         """
-        states, action_probs, _, values = self.transition_buffer.get_all_transitions()
+        action_probs, _, values = self.transition_buffer.get_all_transitions()
         n_step_returns = self.transition_buffer.calculate_n_step_returns(value=next_value, done=done)
 
-        actor_loss, critic_loss = 0, 0
-        for G, value, action_prob in zip(n_step_returns, values, action_probs):
-            delta = G - value
-            actor_loss += -torch.log(action_prob) * delta.detach()
-            critic_loss += delta ** 2
+        # Calculate delta values in a vectorized manner
+        deltas = n_step_returns - values
 
-        loss = (actor_loss + critic_loss) / len(n_step_returns)
+        # Compute actor and critic losses using mean
+        actor_loss = -torch.mean(torch.log(action_probs) * deltas.detach())
+        critic_loss = torch.mean(deltas ** 2)
+
+        loss = actor_loss + critic_loss
         self.optim.zero_grad()
         loss.backward()
         self.optim.step()
@@ -187,11 +181,12 @@ class Trainer:
         self.transition_buffer.clear()  # Clear the buffer after optimization
         self.loss = loss  # Assign loss for logging
 
-    def train(self):
+    def train(self, epochs = 50000, n_steps = 5):
         """
         Run the training loop for the agent.
         """
-        torch.autograd.set_detect_anomaly(True)
+        self.epochs = epochs
+        self.n_steps = n_steps
         for epoch in range(self.start_epoch, self.epochs):
             self.env.restart()
             done = False
@@ -204,7 +199,7 @@ class Trainer:
                 action, action_prob, value = self.player.get_action_and_value(state)
                 reward, done = self.env.move(action=action)
                 next_state = self.env.state()
-                self.transition_buffer.append((state, action_prob, reward, value))
+                self.transition_buffer.append((action_prob, reward, value))
                 self.step += 1
 
                 if len(self.transition_buffer) >= self.n_steps or done:
@@ -314,5 +309,5 @@ class WandB:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(num=603, n_step=30)
-    trainer.train()
+    trainer = Trainer(num=604)
+    trainer.train(n_steps=20)
