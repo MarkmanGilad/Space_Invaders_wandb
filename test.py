@@ -1,17 +1,43 @@
-import numpy as np
-# import matplotlib.pyplot as plt
+
+
 import torch
 
-# arr = torch.tensor([[1,2,3],[4,5,6],[7,8,9]])
-# rows = torch.arange(arr.shape[0]).reshape(-1,1)
-# cols = torch.tensor([2,1,0]).reshape(-1,1)
-# print(arr)
-# print(arr[rows, cols])
-# print(arr.sum().item())
+state = torch.tensor([0.0288, 0.0333, 0.3000, 0.1787, 0.0333, 0.3000, 0.3288, 0.0333, 0.3000,
+        0.4787, 0.0333, 0.3000, 0.6288, 0.0333, 0.3000, 0.7788, 0.0333, 0.3000,
+        0.0288, 0.1667, 0.3000, 0.1787, 0.1667, 0.3000, 0.3288, 0.1667, 0.3000,
+        0.4787, 0.1667, 0.3000, 0.6288, 0.1667, 0.3000, 0.7788, 0.1667, 0.3000,
+        0.0288, 0.3000, 0.3000, 0.1787, 0.3000, 0.3000, 0.3288, 0.3000, 0.3000,
+        0.4787, 0.3000, 0.3000, 0.6288, 0.3000, 0.3000, 0.7788, 0.3000, 0.3000,
+        4.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
+        0.0000, 0.0000, 0.0000, 0.5000, 0.4625, 0.7833, 0.5000, 0.4625, 0.7033,
+        0.0000, 0.0000, 0.0000, 0.0000, 1.5000, 0.7900, 1.0000])
 
-if torch.cuda.is_available():
-    device = torch.device('cuda')
-else:
-    device = torch.device('cpu')
 
-print(device)
+
+
+
+
+# enemy-ship
+state[0:54].reshape(3, 6, -1) 
+
+#Enemy Y speed
+state[54]
+
+#enemy bullet group
+state[55:75].reshape(-1,2)
+
+state[75] #Enemy bullet speed
+
+
+print(state[76]) #spaceship X
+print(state[77]) #spaceship Y
+print(state[78]) #spaceship Speed
+
+print(state[79:85].reshape(-1,2))   # bullets 
+
+print(state[85])    # spave ship bullet speed
+
+print(state[86])   #ammunition
+
+print(state[87])   #level

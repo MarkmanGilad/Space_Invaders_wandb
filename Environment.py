@@ -74,17 +74,18 @@ class Environment:
         elif action == 3:
             self.spaceship.shoot ()
             if self.spaceship.ammunition > 0:
-                reward += 0 ## don't add reward for shooting
+                reward -= 0.01              # don't waste ammunition
         self.update()
         self.draw()
-        reward += self.hits()
+        hits = self.hits()
+        reward +=  hits * 0.1
         if self.is_end_of_stage():
-            reward += 0
+            reward += .5
             self.restart(add_speed=1, add_shoot_factor=0.1, new_game=False)
-        self.score += reward
+        self.score += hits
         done = self.is_end_of_Game()
         if done:
-            reward -= 3
+            reward -= 5
         return reward, done
     
     def is_end_of_stage (self):
@@ -99,7 +100,19 @@ class Environment:
         collisions = pygame.sprite.groupcollide(self.enemy_Group, self.bullets_Group, True, True, pygame.sprite.collide_mask)
         return len(collisions)
     
+    def normX(self, x):
+        return x / WIDTH
+    
+    def normY(self, y):
+        return y / MAIN_SURF_HEIGHT
+    
+    def normSpeed(self, s):
+        return s / 10
+
     def state (self):
+        normX = self.normX
+        normY = self.normY
+        normS = self.normSpeed
         enemy_ships = ENEMY_COLS * ENEMY_ROWS * 3              # x,y,speed 3 * 6 * 3 = 54  
         enemy_speed_y = 1                                       # 1
         enemy_bullets = MAX_ENEMY_BULLETS * 2         # 10 * 2 = 20
@@ -119,42 +132,33 @@ class Environment:
         # 0 - 53
         index = 0                                           # 0 - 53
         for sprite in self.enemy_Group:
-            state_list.append(sprite.rect.centerx)
-            state_list.append(sprite.rect.centery)
-            state_list.append(sprite.speed_x)
+            state_list.append(normX(sprite.rect.centerx))
+            state_list.append(normY(sprite.rect.centery))
+            state_list.append(normS(sprite.speed_x))
             index += 3
         for i in range(enemy_ships-index):
             state_list.append(0)
-        state_list.append(Enemy.speed_y)                    # 54
+        state_list.append(normS(Enemy.speed_y))                    # 54
         index = 0
         for sprite in self.enemy_bullets_Group:             # 55 - 74
-            state_list.append(sprite.rect.centerx)
-            state_list.append(sprite.rect.centery)
+            state_list.append(normX(sprite.rect.centerx))
+            state_list.append(normY(sprite.rect.centery))
             index += 2
         for i in range(enemy_bullets-index):
             state_list.append(0)
-        state_list.append(ENEMY_BULLET_SPEED)               # 75
-        state_list.append(self.spaceship.rect.centerx)      # 76
-        state_list.append(self.spaceship.rect.centery)      # 77
-        state_list.append(SPACESHIP_SPEED)                  # 78
+        state_list.append(normS(ENEMY_BULLET_SPEED))               # 75
+        state_list.append(normX(self.spaceship.rect.centerx))      # 76
+        state_list.append(normY(self.spaceship.rect.centery))      # 77
+        state_list.append(normS(SPACESHIP_SPEED))                  # 78
         index = 0
         for sprite in self.bullets_Group:                   # 79 - 84
-            state_list.append(sprite.rect.centerx)
-            state_list.append(sprite.rect.centery)
+            state_list.append(normX(sprite.rect.centerx))
+            state_list.append(normY(sprite.rect.centery))
             index += 2
         for i in range(SpaceShip_Bullet_pos_shape-index):
             state_list.append(0)
-        state_list.append(SPACESHIP_BULLET_SPEED)           # 85
-        state_list.append(self.spaceship.ammunition)        # 86
+        state_list.append(normS(SPACESHIP_BULLET_SPEED))           # 85
+        state_list.append(self.spaceship.ammunition/100)        # 86
         state_list.append(self.level)                       # 87
         # state_list.append(self.score)                       # 88
         return torch.tensor(state_list, dtype=torch.float32)
-
-     
-    
-
-
-
-
-
-

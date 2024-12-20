@@ -47,3 +47,6 @@ class Graphics:
 
     def tick(self):
         self.clock.tick(FPS)
+
+    def event_pump(self):
+        pygame.event.pump()

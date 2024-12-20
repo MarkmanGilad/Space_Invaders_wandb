@@ -15,8 +15,9 @@ class TransitionBuffer:
     Attributes:
         buffer (deque): Stores transitions up to a maximum length.
         gamma (float): Discount factor for future rewards.
+        device (torch.device): Device to store tensors.
     """
-    def __init__(self, maxlen, gamma):
+    def __init__(self, maxlen, gamma, device):
         """
         Initialize the TransitionBuffer.
 
@@ -26,6 +27,7 @@ class TransitionBuffer:
         """
         self.buffer = deque(maxlen=maxlen)
         self.gamma = gamma
+        self.device = device
 
     def append(self, transition):
         """
@@ -54,7 +56,7 @@ class TransitionBuffer:
                 _, reward, _ = transition
                 G = reward + self.gamma * G
                 n_step_returns.insert(0, G)
-        return torch.tensor(n_step_returns, dtype=torch.float32)
+        return torch.tensor(n_step_returns, dtype=torch.float32, device=self.device)
 
     def get_all_transitions(self):
         """
@@ -66,9 +68,9 @@ class TransitionBuffer:
             values (torch.Tensor): Tensor of values.
         """
         action_probs, rewards, values = zip(*self.buffer)
-        action_probs = torch.stack(action_probs)  
-        rewards = torch.tensor(rewards, dtype=torch.float32)  
-        values = torch.tensor(values, dtype=torch.float32)  
+        action_probs = torch.stack(action_probs).to(self.device)  
+        rewards = torch.tensor(rewards, dtype=torch.float32, device=self.device)  
+        values = torch.tensor(values, dtype=torch.float32, device=self.device)  
         return action_probs, rewards, values
 
     def clear(self):
@@ -105,7 +107,7 @@ class Trainer:
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.player = ActorCriticAgent()
         self.init_params()
-        self.transition_buffer = TransitionBuffer(maxlen=self.n_steps, gamma=self.gamma)
+        self.transition_buffer = TransitionBuffer(maxlen=self.n_steps, gamma=self.gamma, device=self.device)
 
         self.checkpoint_path = f"Data/Actor_Critic{self.num}.pth"
         self.resume_wandb = False
@@ -138,12 +140,13 @@ class Trainer:
         self.epochs = 30000
         self.start_epoch = 0
         self.optim = torch.optim.Adam(self.player.policy_value.parameters(), lr=self.learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optim, 10000, gamma=0.95)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optim, 100, gamma=0.90)
         self.scores = []
         self.losses = []
         self.avg_score = []
         self.avg = 0
         self.step = 0
+        self.betta = 0.05    # entropy regularization weight.
 
     def load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
@@ -169,8 +172,11 @@ class Trainer:
         # Calculate delta values in a vectorized manner
         deltas = n_step_returns - values
 
+        # Compute entropy to encourage exploration
+        entropy = -(action_probs * torch.log(action_probs + 1e-10)).sum(-1).mean()
+
         # Compute actor and critic losses using mean
-        actor_loss = -torch.mean(torch.log(action_probs) * deltas.detach())
+        actor_loss = -torch.mean(torch.log(action_probs) * deltas.detach()) - self.betta * entropy
         critic_loss = torch.mean(deltas ** 2)
 
         loss = actor_loss + critic_loss
@@ -192,20 +198,20 @@ class Trainer:
             done = False
             state = self.env.state()
             self.step = 0
-
             while not done:
                 self.graphics.clear()
-                self.graphics.events()
+                self.graphics.event_pump()
+                # self.graphics.events()
                 action, action_prob, value = self.player.get_action_and_value(state)
                 reward, done = self.env.move(action=action)
-                next_state = self.env.state()
+                # next_state = self.env.state()
                 self.transition_buffer.append((action_prob, reward, value))
                 self.step += 1
 
                 if len(self.transition_buffer) >= self.n_steps or done:
                     self.update_model(done, value)
 
-                state = next_state
+                state = self.env.state()
                 self.graphics.header_writing(env=self.env, epoch=epoch)
                 self.graphics.update()
 
@@ -238,22 +244,18 @@ class Trainer:
             epoch (int): Current training epoch.
         """
         print(
-            f'epoch: {epoch} loss: {self.loss.item():.5f} LR: {self.scheduler.get_last_lr()} step: {self.step} '
-            f'score: {self.env.score} level: {self.env.level} best_score: {self.best_score}'
+            f'num: {self.num} epoch: {epoch} loss: {self.loss.item():.5f} LR: {self.scheduler.get_last_lr()} step: {self.step} '
+            f'score: {self.env.score} level: {self.env.level} best_score: {self.best_score} n_steps: {self.n_steps} average score : {self.avg}  '
         )
-
+        self.best_score = max(self.best_score, self.env.score)
         # Log and compute average every 10 epochs
-        if epoch % 10 == 0:
+        if epoch % 1 == 0:
             self.scores.append(self.env.score)
             self.losses.append(self.loss.item())
-            self.avg = (self.avg * (epoch % 10) + self.env.score) / (epoch % 10 + 1)
-
-        if (epoch + 1) % 10 == 0:
+            self.avg = sum(self.scores) / len(self.scores)
             self.avg_score.append(self.avg)
             self.wb.log(score=self.env.score, loss=self.loss.item(), avg=self.avg)
-            print(f'average score last 10 games: {self.avg} ')
-            self.avg = 0
-
+           
 
 class WandB:
     """
@@ -276,25 +278,23 @@ class WandB:
             model (str): Model description.
             device (str): Device used (CPU or GPU).
         """
-        if not resume:
-            wandb.init(
-                project=project_name,
-                resume=resume,
-                id=f'{project_name} {num}',
-                config={
-                    "name": f"{project_name} {num}",
-                    "checkpoint": checkpoint_path,
-                    "learning_rate": learning_rate,
-                    "epochs": epochs,
-                    "start_epoch": start_epoch,
-                    "gamma": gamma,
-                    "Model": str(model),
-                    "device": str(device),
-                },
-            )
-        else:
-            wandb.config.update(allow_val_change=True)
-
+    
+        wandb.init(
+            project=project_name,
+            resume=resume,
+            id=f'{project_name} {num}',
+            config={
+                "name": f"{project_name} {num}",
+                "checkpoint": checkpoint_path,
+                "learning_rate": learning_rate,
+                "epochs": epochs,
+                "start_epoch": start_epoch,
+                "gamma": gamma,
+                "Model": str(model),
+                "device": str(device),
+            },
+        )
+        
     def log(self, score, loss, avg):
         """
         Log training metrics to WandB.
@@ -309,5 +309,5 @@ class WandB:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(num=604)
-    trainer.train(n_steps=20)
+    trainer = Trainer(num=705)
+    trainer.train(n_steps=5)
