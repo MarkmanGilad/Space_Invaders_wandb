@@ -147,6 +147,7 @@ class Trainer:
         self.avg = 0
         self.step = 0
         self.betta = 0.05    # entropy regularization weight.
+        self.max_grad_norm = 0.5
 
     def load_checkpoint(self):
         if os.path.exists(self.checkpoint_path):
@@ -182,6 +183,10 @@ class Trainer:
         loss = actor_loss + critic_loss
         self.optim.zero_grad()
         loss.backward()
+        
+        # Clip gradients to prevent explosive updates
+        torch.nn.utils.clip_grad_norm_(self.player.policy_value.parameters(), self.max_grad_norm)
+        
         self.optim.step()
 
         self.transition_buffer.clear()  # Clear the buffer after optimization
@@ -309,5 +314,5 @@ class WandB:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(num=705)
-    trainer.train(n_steps=5)
+    trainer = Trainer(num=709)
+    trainer.train(n_steps=7)
