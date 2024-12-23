@@ -3,7 +3,7 @@ import torch
 from CONSTANTS import *
 from Environment import Environment
 import numpy as np
-from PPO_Agent import Agent
+from PPO_Agent import PPO_Agent
 from Graphics import Graphics
 import os
 import wandb
@@ -33,7 +33,7 @@ class Trainer:
         self.num = num
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.player = ActorCriticAgent()
+        self.player = PPO()
         self.init_params()
         self.transition_buffer = TransitionBuffer(maxlen=self.n_steps, gamma=self.gamma, device=self.device)
 

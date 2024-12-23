@@ -60,27 +60,26 @@ class PPOMemory:
 
 class ActorNetwork(nn.Module):
     def __init__(self, n_actions, input_dims, alpha,
-            fc1_dims=256, fc2_dims=256, chkpt_dir='tmp/ppo'):
+            fc1_dims=256, fc2_dims=256, chkpt=1):
         super(ActorNetwork, self).__init__()
-
-        self.checkpoint_file = os.path.join(chkpt_dir, 'actor_torch_ppo')
-        self.actor = nn.Sequential(
-                nn.Linear(*input_dims, fc1_dims),
-                nn.ReLU(),
-                nn.Linear(fc1_dims, fc2_dims),
-                nn.ReLU(),
-                nn.Linear(fc2_dims, n_actions),
-                nn.Softmax(dim=-1)
-        )
-
+        self.fc1 = nn.Linear(*input_dims, fc1_dims)
+        self.fc2 = nn.Linear(fc1_dims, fc2_dims)
+        self.fc3 = nn.Linear(fc2_dims, n_actions)
+        self.relu = nn.ReLU()
+        self.softmax = nn.Softmax(dim=-1)
+        self.checkpoint_file = os.path.join(f'Actor{chkpt}.pth', 'Data')
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
     def forward(self, state):
-        dist = self.actor(state)
-        dist = Categorical(dist)
-        
+        x = self.fc1(state)
+        x = self.relu(x)
+        x = self.fc2(x)
+        x = self.relu(x)
+        x = self.fc3(x)
+        x = self.softmax(x)
+        dist = Categorical(x)
         return dist
 
     def save_checkpoint(self):
@@ -91,25 +90,25 @@ class ActorNetwork(nn.Module):
 
 class CriticNetwork(nn.Module):
     def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256,
-            chkpt_dir='tmp/ppo'):
+            chkpt=1):
         super(CriticNetwork, self).__init__()
 
-        self.checkpoint_file = os.path.join(chkpt_dir, 'critic_torch_ppo')
-        self.critic = nn.Sequential(
-                nn.Linear(*input_dims, fc1_dims),
-                nn.ReLU(),
-                nn.Linear(fc1_dims, fc2_dims),
-                nn.ReLU(),
-                nn.Linear(fc2_dims, 1)
-        )
-
+        self.checkpoint_file = os.path.join(f'Critic{chkpt}.pth', 'critic_torch_ppo')
+        self.fc1 = nn.Linear(*input_dims, fc1_dims)
+        self.fc2 = (fc1_dims, fc2_dims)
+        self.fc3 = (fc2_dims, 1)
+        self.relu = nn.ReLU()  
+        
         self.optimizer = optim.Adam(self.parameters(), lr=alpha)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
     def forward(self, state):
-        value = self.critic(state)
-
+        x = self.fc1(state)
+        x = self.relu(x)
+        x = self.fc2(x)
+        x = self.relu(x)
+        value = self.fc3(x)
         return value
 
     def save_checkpoint(self):
@@ -118,7 +117,7 @@ class CriticNetwork(nn.Module):
     def load_checkpoint(self):
         self.load_state_dict(T.load(self.checkpoint_file))
 
-class Agent:
+class PPO_Agent:
     def __init__(self, n_actions, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
             policy_clip=0.2, batch_size=64, n_epochs=10):
         self.gamma = gamma
@@ -143,39 +142,43 @@ class Agent:
         self.actor.load_checkpoint()
         self.critic.load_checkpoint()
 
-    def choose_action(self, observation):
-        state = T.tensor([observation], dtype=T.float).to(self.actor.device)
-
-        dist = self.actor(state)
-        value = self.critic(state)
+    def choose_action(self, state):
+        state = T.tensor([state], dtype=T.float).to(self.actor.device)
+        with T.no_grad():
+            dist = self.actor(state)
+            value = self.critic(state)
         action = dist.sample()
-
+        
         probs = T.squeeze(dist.log_prob(action)).item()
         action = T.squeeze(action).item()
         value = T.squeeze(value).item()
 
         return action, probs, value
 
+    def calculate_advantage (self, reward_arr, val_arr, done_arr):
+        values = val_arr
+        advantage = np.zeros(len(reward_arr), dtype=np.float32)
+
+        for t in range(len(reward_arr)-1):
+            discount = 1
+            a_t = 0
+            for k in range(t, len(reward_arr)-1):
+                a_t += discount*(reward_arr[k] + self.gamma*values[k+1]*\
+                        (1-int(done_arr[k])) - values[k])
+                discount *= self.gamma*self.gae_lambda
+            advantage[t] = a_t
+        advantage = T.tensor(advantage).to(self.actor.device)
+        return advantage
+
+
     def learn(self):
         for _ in range(self.n_epochs):
-            state_arr, action_arr, old_prob_arr, vals_arr,\
-            reward_arr, dones_arr, batches = \
+            state_arr, action_arr, old_prob_arr, val_arr,\
+            reward_arr, done_arr, batches = \
                     self.memory.generate_batches()
 
-            values = vals_arr
-            advantage = np.zeros(len(reward_arr), dtype=np.float32)
-
-            for t in range(len(reward_arr)-1):
-                discount = 1
-                a_t = 0
-                for k in range(t, len(reward_arr)-1):
-                    a_t += discount*(reward_arr[k] + self.gamma*values[k+1]*\
-                            (1-int(dones_arr[k])) - values[k])
-                    discount *= self.gamma*self.gae_lambda
-                advantage[t] = a_t
-            advantage = T.tensor(advantage).to(self.actor.device)
-
-            values = T.tensor(values).to(self.actor.device)
+            advantage = self.calculate_advantage(reward_arr, val_arr, done_arr )
+            values = T.tensor(val_arr).to(self.actor.device)
             for batch in batches:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
@@ -183,12 +186,10 @@ class Agent:
 
                 dist = self.actor(states)
                 critic_value = self.critic(states)
-
                 critic_value = T.squeeze(critic_value)
 
                 new_probs = dist.log_prob(actions)
                 prob_ratio = new_probs.exp() / old_probs.exp()
-                #prob_ratio = (new_probs - old_probs).exp()
                 weighted_probs = advantage[batch] * prob_ratio
                 weighted_clipped_probs = T.clamp(prob_ratio, 1-self.policy_clip,
                         1+self.policy_clip)*advantage[batch]
