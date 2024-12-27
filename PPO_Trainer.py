@@ -40,29 +40,29 @@ class Trainer:
         self.resume_wandb = False
         self.load_checkpoint()
 
-        # self.wb = WandB(
-        #     "Space_Invaders_PPO",
-        #     self.resume_wandb,
-        #     self.chkpt,
-        #     self.checkpoint_path,
-        #     self.epochs,
-        #     self.n_steps,
-        #     self.device,
-        #     self.agent.actor,
-        #     self.agent.critic,
-        #     self.agent.gamma,
-        #     self.agent.policy_clip,
-        #     self.agent.value_clip,
-        #     self.agent.n_epochs,
-        #     self.agent.gae_lambda,
-        #     self.agent.entropy_coefficient,
-        #     self.agent.max_grad_norm,
-        #     self.agent.batch_size,
-        #     self.agent.lr_actor,
-        #     self.agent.lr_critic,
-        #     self.agent.optim_step,
-        #     self.agent.optim_gamma
-        # )
+        self.wb = WandB(
+            "Space_Invaders_PPO",
+            self.resume_wandb,
+            self.chkpt,
+            self.checkpoint_path,
+            self.epochs,
+            self.n_steps,
+            self.device,
+            self.agent.actor,
+            self.agent.critic,
+            self.agent.gamma,
+            self.agent.policy_clip,
+            self.agent.value_clip,
+            self.agent.n_epochs,
+            self.agent.gae_lambda,
+            self.agent.entropy_coefficient,
+            self.agent.max_grad_norm,
+            self.agent.batch_size,
+            self.agent.lr_actor,
+            self.agent.lr_critic,
+            self.agent.optim_step,
+            self.agent.optim_gamma
+        )
     
     def init_params(self):
         """
@@ -102,18 +102,19 @@ class Trainer:
                 reward, done = self.env.move(action=action)
                 agent.remember(state, action, prob, val, reward, done)
                 self.step += 1
-                if self.step % 10 == 0:
-                    print(f'self.step: {self.step} action: {action} prob: {prob} val: {val}')
+                # if self.step % 10 == 0:
+                    # print(f'self.step: {self.step} action: {action} prob: {prob} val: {val}')
 
                 if done or self.step % self.n_steps == 0:
                     agent.learn(epoch)
-                    self.log_and_plot(epoch)   
+                    # self.log_and_plot(epoch)   
 
                 state = self.env.state()
                 self.graphics.header_writing(env=self.env, epoch=epoch)
                 self.graphics.update()
             
             self.save_checkpoint(epoch)
+            self.log_and_plot(epoch)
 
         pygame.quit()
 
@@ -170,8 +171,8 @@ class Trainer:
             self.scores.append(self.env.score)
             self.avg = sum(self.scores) / len(self.scores)
             self.avg_score.append(self.avg)
-            # self.wb.log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
-                        # total_loss=self.agent.total_loss, avg=self.avg)
+            self.wb.log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
+                        total_loss=self.agent.total_loss, avg=self.avg)
            
 
 class WandB:
