@@ -8,6 +8,7 @@ from Graphics import Graphics
 import os
 import wandb
 
+
 class Trainer:
     """
     Trainer class for running the Actor-Critic training loop.
@@ -15,12 +16,12 @@ class Trainer:
     Attributes:
         graphics (Graphics): Handles graphics rendering for the environment.
         env (Environment): The game environment.
-        player (ActorCriticAgent): The actor-critic agent.
+        agent (PPO_Agent): The PPO agent.
         optim (torch.optim.Optimizer): Optimizer for updating model parameters.
         scheduler (torch.optim.lr_scheduler): Scheduler for learning rate adjustment.
-        transition_buffer (TransitionBuffer): Stores transitions for n-step returns.
+
     """
-    def __init__(self, num):
+    def __init__(self, chkpt):
         """
         Initialize the Trainer.
 
@@ -30,30 +31,39 @@ class Trainer:
         """
         self.graphics = Graphics()
         self.env = Environment(surface=self.graphics.main_surf)
-        self.num = num
+        self.chkpt = chkpt
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.player = PPO()
+        self.agent = PPO_Agent(chkpt=self.chkpt)
         self.init_params()
-        self.transition_buffer = TransitionBuffer(maxlen=self.n_steps, gamma=self.gamma, device=self.device)
-
-        self.checkpoint_path = f"Data/Actor_Critic{self.num}.pth"
+        self.checkpoint_path = f"Data/PPO_checkpt{self.chkpt}.pth"
         self.resume_wandb = False
         self.load_checkpoint()
 
-        self.wb = WandB(
-            "Space_Invaders",
-            self.resume_wandb,
-            self.num,
-            self.checkpoint_path,
-            self.learning_rate,
-            self.epochs,
-            self.start_epoch,
-            self.gamma,
-            self.player.policy_value,
-            self.device,
-        )
-
+        # self.wb = WandB(
+        #     "Space_Invaders_PPO",
+        #     self.resume_wandb,
+        #     self.chkpt,
+        #     self.checkpoint_path,
+        #     self.epochs,
+        #     self.n_steps,
+        #     self.device,
+        #     self.agent.actor,
+        #     self.agent.critic,
+        #     self.agent.gamma,
+        #     self.agent.policy_clip,
+        #     self.agent.value_clip,
+        #     self.agent.n_epochs,
+        #     self.agent.gae_lambda,
+        #     self.agent.entropy_coefficient,
+        #     self.agent.max_grad_norm,
+        #     self.agent.batch_size,
+        #     self.agent.lr_actor,
+        #     self.agent.lr_critic,
+        #     self.agent.optim_step,
+        #     self.agent.optim_gamma
+        # )
+    
     def init_params(self):
         """
         Initialize hyperparameters and optimizer settings.
@@ -61,71 +71,24 @@ class Trainer:
         Args:
             n_step (int): Number of steps for n-step returns.
         """
-        self.best_score = 0
-        self.learning_rate = 0.001
-        self.gamma = 0.99
-        self.n_steps = 5
+        self.n_steps = 1024
         self.epochs = 30000
-        self.start_epoch = 0
-        self.optim = torch.optim.Adam(self.player.policy_value.parameters(), lr=self.learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optim, 100, gamma=0.90)
+        self.start_epoch = 1
+        self.step = 0
+        self.save_epoch = 1000
+        self.best_score = 0
+        self.avg = 0
         self.scores = []
         self.losses = []
         self.avg_score = []
-        self.avg = 0
-        self.step = 0
-        self.betta = 0.05    # entropy regularization weight.
-        self.max_grad_norm = 0.5
-
-    def load_checkpoint(self):
-        if os.path.exists(self.checkpoint_path):
-            self.resume_wandb = True
-            checkpoint = torch.load(self.checkpoint_path)
-            self.start_epoch = checkpoint['epoch'] + 1
-            self.player.policy_value.load_state_dict(checkpoint['model_state_dict'])
-            self.optim.load_state_dict(checkpoint['optimizer_state_dict'])
-            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
-        self.player.policy_value.train()
-
-    def update_model(self, done, next_value):
-        """
-        Update the model parameters using transitions from the buffer.
-
-        Args:
-            done (bool): Whether the episode has ended.
-            next_value (float): The value of the next state.
-        """
-        action_probs, _, values = self.transition_buffer.get_all_transitions()
-        n_step_returns = self.transition_buffer.calculate_n_step_returns(value=next_value, done=done)
-
-        # Calculate delta values in a vectorized manner
-        deltas = n_step_returns - values
-
-        # Compute entropy to encourage exploration
-        entropy = -(action_probs * torch.log(action_probs + 1e-10)).sum(-1).mean()
-
-        # Compute actor and critic losses using mean
-        actor_loss = -torch.mean(torch.log(action_probs) * deltas.detach()) - self.betta * entropy
-        critic_loss = torch.mean(deltas ** 2)
-
-        loss = actor_loss + critic_loss
-        self.optim.zero_grad()
-        loss.backward()
-        
-        # Clip gradients to prevent explosive updates
-        torch.nn.utils.clip_grad_norm_(self.player.policy_value.parameters(), self.max_grad_norm)
-        
-        self.optim.step()
-
-        self.transition_buffer.clear()  # Clear the buffer after optimization
-        self.loss = loss  # Assign loss for logging
-
-    def train(self, epochs = 50000, n_steps = 5):
+    
+    def train(self, epochs = 50000):
         """
         Run the training loop for the agent.
         """
+        agent = self.agent
         self.epochs = epochs
-        self.n_steps = n_steps
+
         for epoch in range(self.start_epoch, self.epochs):
             self.env.restart()
             done = False
@@ -134,26 +97,37 @@ class Trainer:
             while not done:
                 self.graphics.clear()
                 self.graphics.event_pump()
-                # self.graphics.events()
-                action, action_prob, value = self.player.get_action_and_value(state)
+                self.graphics.events()
+                action, prob, val = agent.choose_action(state)
                 reward, done = self.env.move(action=action)
-                # next_state = self.env.state()
-                self.transition_buffer.append((action_prob, reward, value))
+                agent.remember(state, action, prob, val, reward, done)
                 self.step += 1
+                if self.step % 10 == 0:
+                    print(f'self.step: {self.step} action: {action} prob: {prob} val: {val}')
 
-                if len(self.transition_buffer) >= self.n_steps or done:
-                    self.update_model(done, value)
+                if done or self.step % self.n_steps == 0:
+                    agent.learn(epoch)
+                    self.log_and_plot(epoch)   
 
                 state = self.env.state()
                 self.graphics.header_writing(env=self.env, epoch=epoch)
                 self.graphics.update()
+            
+            self.save_checkpoint(epoch)
 
-            self.scheduler.step()
-            self.log_and_plot(epoch)
-
-            if epoch % 1000 == 0 and epoch > 0:
-                self.save_checkpoint(epoch)
         pygame.quit()
+
+    def load_checkpoint(self):
+        if os.path.exists(self.checkpoint_path):
+            self.resume_wandb = True
+            checkpoint = torch.load(self.checkpoint_path)
+            self.start_epoch = checkpoint['epoch'] + 1
+            self.agent.actor.load_state_dict(checkpoint['actor_state_dict'])
+            self.agent.critic.load_state_dict(checkpoint['critic_state_dict'])
+            self.agent.actor.optimizer.load_state_dict(checkpoint['actor_optim_state_dict'])
+            self.agent.critic.optimizer.load_state_dict(checkpoint['critic_optim_state_dict'])
+            self.agent.actor.scheduler.load_state_dict(checkpoint['actor_scheduler_state_dict'])
+            self.agent.critic.scheduler.load_state_dict(checkpoint['critic_scheduler_state_dict'])
 
     def save_checkpoint(self, epoch):
         """
@@ -162,14 +136,20 @@ class Trainer:
         Args:
             epoch (int): Current training epoch.
         """
+        if epoch % self.save_epoch != 0:
+            return
         torch.save({
             'epoch': epoch,
-            'model_state_dict': self.player.policy_value.state_dict(),
-            'optimizer_state_dict': self.optim.state_dict(),
-            'scheduler_state_dict': self.scheduler.state_dict(),
+            'actor_state_dict': self.agent.actor.state_dict(),
+            'critic_state_dict': self.agent.critic.state_dict(),
+            'actor_optim_state_dict': self.agent.actor.optimizer.optim.state_dict(),
+            'critic_optim_state_dict': self.agent.critic.optimizer.optim.state_dict(),
+            'actor_scheduler_state_dict': self.agent.actor.scheduler.state_dict(),
+            'critic_scheduler_state_dict': self.agent.critic.scheduler.state_dict(),
         }, self.checkpoint_path)
 
-    def log_and_plot(self, epoch):
+    def log_and_plot(self, epoch, log_epoch=1):
+        
         """
         Log metrics and display training information.
 
@@ -177,32 +157,37 @@ class Trainer:
             epoch (int): Current training epoch.
         """
         print(
-            f'num: {self.num} epoch: {epoch} loss: {self.loss.item():.5f} LR: {self.scheduler.get_last_lr()} step: {self.step} '
-            f'score: {self.env.score} level: {self.env.level} best_score: {self.best_score} n_steps: {self.n_steps} average score : {self.avg}  '
+            f'chkpt: {self.chkpt} epoch: {epoch}',
+            f'actor_loss: {self.agent.actor_loss:.5f} critic_loss: {self.agent.critic_loss:.5f}',
+            f'total_loss: {self.agent.total_loss:.5f}',
+            f'actor_lr: {self.agent.actor.scheduler.get_last_lr()} critic_lr: {self.agent.critic.scheduler.get_last_lr()}',
+            f'score: {self.env.score} level: {self.env.level}'
+            
         )
         self.best_score = max(self.best_score, self.env.score)
         # Log and compute average every 10 epochs
-        if epoch % 1 == 0:
+        if epoch % log_epoch == 0:
             self.scores.append(self.env.score)
-            self.losses.append(self.loss.item())
             self.avg = sum(self.scores) / len(self.scores)
             self.avg_score.append(self.avg)
-            self.wb.log(score=self.env.score, loss=self.loss.item(), avg=self.avg)
+            # self.wb.log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
+                        # total_loss=self.agent.total_loss, avg=self.avg)
            
 
 class WandB:
     """
     WandB class for logging metrics to Weights & Biases.
     """
-    def __init__(self, project_name, resume, num, checkpoint_path,
-                 learning_rate, epochs, start_epoch, gamma, model, device):
+    def __init__(self, project_name, resume, chkpt, checkpoint_path, epochs, n_steps, device, actor_model, critic_model,
+                 gamma, policy_clip, value_clip, n_epochs, gae_lambda, entropy_coefficient, max_grad_norm, batch_size,
+                 lr_actor, lr_critic, optim_step, optim_gamma):
         """
         Initialize the WandB logger.
 
         Args:
             project_name (str): Name of the project.
             resume (bool): Whether to resume logging.
-            num (int): Run identifier.
+            chkpt (int): Run identifier.
             checkpoint_path (str): Path to save checkpoints.
             learning_rate (float): Learning rate for the optimizer.
             epochs (int): Total number of epochs.
@@ -215,20 +200,32 @@ class WandB:
         wandb.init(
             project=project_name,
             resume=resume,
-            id=f'{project_name} {num}',
+            id=f'{project_name} {chkpt}',
             config={
-                "name": f"{project_name} {num}",
+                "name": f"{project_name} {chkpt}",
                 "checkpoint": checkpoint_path,
-                "learning_rate": learning_rate,
                 "epochs": epochs,
-                "start_epoch": start_epoch,
-                "gamma": gamma,
-                "Model": str(model),
+                "n_steps": n_steps, 
                 "device": str(device),
+                "actor_model":str(actor_model), 
+                "critic_model":str(critic_model),
+                 "gamma":gamma, 
+                 "policy_clip":policy_clip, 
+                 "value_clip":value_clip, 
+                 "n_epochs":n_epochs, 
+                 "gae_lambda":gae_lambda, 
+                 "entropy_coefficient":entropy_coefficient, 
+                 "max_grad_norm":max_grad_norm, 
+                 "batch_size":batch_size,
+                 "lr_actor":lr_actor, 
+                 "lr_critic":lr_critic, 
+                 "optim_step":optim_step, 
+                 "optim_gamma":optim_gamma
+                
             },
         )
         
-    def log(self, score, loss, avg):
+    def log(self, score, actor_loss, critic_loss, total_loss, avg):
         """
         Log training metrics to WandB.
 
@@ -237,10 +234,10 @@ class WandB:
             loss (float): Current loss.
             avg (float): Average score.
         """
-        wandb.log({"score": score, "loss": loss, "avg_score": avg})
+        wandb.log({"score": score, "actor_loss": actor_loss, "critic_loss":critic_loss, "total_loss":total_loss, "avg_score": avg})
 
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(num=709)
-    trainer.train(n_steps=7)
+    trainer = Trainer(chkpt=1)
+    trainer.train()

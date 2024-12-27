@@ -15,6 +15,7 @@ import torch as T
 import torch.nn as nn
 import torch.optim as optim
 from torch.distributions.categorical import Categorical
+import statistics as stat
 
 class PPOMemory:
     def __init__(self, batch_size):
@@ -59,16 +60,16 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, n_actions, input_dims, alpha,
-            fc1_dims=256, fc2_dims=256, chkpt=1):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=256, chkpt=1, optim_step = 100, optim_gamma = 0.9):
         super(ActorNetwork, self).__init__()
-        self.fc1 = nn.Linear(*input_dims, fc1_dims)
+        self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
         self.fc3 = nn.Linear(fc2_dims, n_actions)
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
-        self.checkpoint_file = os.path.join(f'Actor{chkpt}.pth', 'Data')
-        self.optimizer = optim.Adam(self.parameters(), lr=alpha)
+        self.checkpoint_file = f'Data/Actor{chkpt}.pth'
+        self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=optim_step, gamma=optim_gamma)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
@@ -78,8 +79,7 @@ class ActorNetwork(nn.Module):
         x = self.fc2(x)
         x = self.relu(x)
         x = self.fc3(x)
-        x = self.softmax(x)
-        dist = Categorical(x)
+        dist = Categorical(logits=x)
         return dist
 
     def save_checkpoint(self):
@@ -89,17 +89,17 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, alpha, fc1_dims=256, fc2_dims=256,
-            chkpt=1):
+    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=256,chkpt=1, optim_step = 100, optim_gamma = 0.9):
         super(CriticNetwork, self).__init__()
 
-        self.checkpoint_file = os.path.join(f'Critic{chkpt}.pth', 'critic_torch_ppo')
-        self.fc1 = nn.Linear(*input_dims, fc1_dims)
-        self.fc2 = (fc1_dims, fc2_dims)
-        self.fc3 = (fc2_dims, 1)
+        self.checkpoint_file = f'Data/Critic{chkpt}.pth'
+        self.fc1 = nn.Linear(input_dims, fc1_dims)
+        self.fc2 = nn.Linear(fc1_dims, fc2_dims)
+        self.fc3 = nn.Linear(fc2_dims, 1)
         self.relu = nn.ReLU()  
         
-        self.optimizer = optim.Adam(self.parameters(), lr=alpha)
+        self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=optim_step, gamma=optim_gamma)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
 
@@ -118,16 +118,24 @@ class CriticNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class PPO_Agent:
-    def __init__(self, n_actions, input_dims, gamma=0.99, alpha=0.0003, gae_lambda=0.95,
-            policy_clip=0.2, batch_size=64, n_epochs=10):
-        self.gamma = gamma
-        self.policy_clip = policy_clip
-        self.n_epochs = n_epochs
-        self.gae_lambda = gae_lambda
-
-        self.actor = ActorNetwork(n_actions, input_dims, alpha)
-        self.critic = CriticNetwork(input_dims, alpha)
-        self.memory = PPOMemory(batch_size)
+    def __init__(self, chkpt, input_dims=88, n_actions=4):
+        self.gamma = 0.99
+        self.policy_clip = 0.2
+        self.value_clip = 0.2  
+        self.n_epochs = 10
+        self.gae_lambda = 0.95
+        self.entropy_coefficient = 0.01  
+        self.max_grad_norm = 0.5  
+        self.batch_size = 64
+        self.lr_actor = 0.0003
+        self.lr_critic = 0.0003
+        self.optim_step = 100
+        self.optim_gamma = 0.9
+        
+        self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, optim_gamma=self.optim_gamma)
+        self.critic = CriticNetwork(input_dims, self.lr_critic, chkpt=chkpt)
+        self.memory = PPOMemory(self.batch_size)
+        
        
     def remember(self, state, action, probs, vals, reward, done):
         self.memory.store_memory(state, action, probs, vals, reward, done)
@@ -143,42 +151,79 @@ class PPO_Agent:
         self.critic.load_checkpoint()
 
     def choose_action(self, state):
-        state = T.tensor([state], dtype=T.float).to(self.actor.device)
+        state = state.to(self.actor.device)
         with T.no_grad():
             dist = self.actor(state)
             value = self.critic(state)
-        action = dist.sample()
-        
-        probs = T.squeeze(dist.log_prob(action)).item()
-        action = T.squeeze(action).item()
-        value = T.squeeze(value).item()
+        action = dist.sample().item()
+        prob = dist.probs[action].item()
+        value = value.item()
 
-        return action, probs, value
+        return action, prob, value
 
     def calculate_advantage (self, reward_arr, val_arr, done_arr):
-        values = val_arr
         advantage = np.zeros(len(reward_arr), dtype=np.float32)
 
-        for t in range(len(reward_arr)-1):
-            discount = 1
-            a_t = 0
-            for k in range(t, len(reward_arr)-1):
-                a_t += discount*(reward_arr[k] + self.gamma*values[k+1]*\
-                        (1-int(done_arr[k])) - values[k])
-                discount *= self.gamma*self.gae_lambda
-            advantage[t] = a_t
+        future_advantage = 0
+        for t in reversed(range(len(reward_arr))):
+            if t == len(reward_arr) - 1:  
+                td_error = reward_arr[t] - val_arr[t]  # No next value for last step
+            else:
+                td_error = reward_arr[t] + self.gamma * val_arr[t+1] * (1 - int(done_arr[t])) - val_arr[t]
+                
+            future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
+            advantage[t] = future_advantage
+        
         advantage = T.tensor(advantage).to(self.actor.device)
+        # Normalization (optional)
+        advantage = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
         return advantage
+    
+    #region  ###### old learn ######
+    # def learn(self):
+    #     for _ in range(self.n_epochs):
+    #         state_arr, action_arr, old_prob_arr, val_arr, reward_arr, done_arr, batches = self.memory.generate_batches()
+    #         advantage = self.calculate_advantage(reward_arr, val_arr, done_arr )
+    #         values = T.tensor(val_arr).to(self.actor.device)
+    #         for batch in batches:
+    #             states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
+    #             old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
+    #             actions = T.tensor(action_arr[batch]).to(self.actor.device)
 
+    #             dist = self.actor(states)
+    #             critic_value = self.critic(states)
+    #             critic_value = T.squeeze(critic_value)
 
-    def learn(self):
+    #             new_probs = dist.log_prob(actions)
+    #             prob_ratio = new_probs.exp() / old_probs.exp()   #new_Logits / old_Logits
+    #             weighted_probs = advantage[batch] * prob_ratio
+    #             weighted_clipped_probs = T.clamp(prob_ratio, 1-self.policy_clip, 1+self.policy_clip)*advantage[batch]
+    #             actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
+
+    #             returns = advantage[batch] + values[batch]
+    #             critic_loss = (returns-critic_value)**2
+    #             critic_loss = critic_loss.mean()
+
+    #             total_loss = actor_loss + 0.5*critic_loss
+    #             self.actor.optimizer.zero_grad()
+    #             self.critic.optimizer.zero_grad()
+    #             total_loss.backward()
+    #             self.actor.optimizer.step()
+    #             self.critic.optimizer.step()
+
+    #     self.memory.clear_memory()   
+    #endregion            
+    
+    def learn(self, epoch):
+        actor_losses = []  # for logging
+        critic_losses = []  # for logging
+        total_losses = [] # for logging
+
         for _ in range(self.n_epochs):
-            state_arr, action_arr, old_prob_arr, val_arr,\
-            reward_arr, done_arr, batches = \
-                    self.memory.generate_batches()
-
-            advantage = self.calculate_advantage(reward_arr, val_arr, done_arr )
+            state_arr, action_arr, old_prob_arr, val_arr, reward_arr, done_arr, batches = self.memory.generate_batches()
+            advantage = self.calculate_advantage(reward_arr, val_arr, done_arr)
             values = T.tensor(val_arr).to(self.actor.device)
+
             for batch in batches:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
@@ -188,22 +233,46 @@ class PPO_Agent:
                 critic_value = self.critic(states)
                 critic_value = T.squeeze(critic_value)
 
-                new_probs = dist.log_prob(actions)
-                prob_ratio = new_probs.exp() / old_probs.exp()
+                new_probs = dist.probs[T.arange(dist.probs.size(0)), actions]
+
+                # Ratio of new and old probabilities (exp(log-probs))
+                prob_ratio = new_probs / old_probs
+
                 weighted_probs = advantage[batch] * prob_ratio
-                weighted_clipped_probs = T.clamp(prob_ratio, 1-self.policy_clip,
-                        1+self.policy_clip)*advantage[batch]
+                weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantage[batch]
                 actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
 
+                # Calculate returns with value clipping
                 returns = advantage[batch] + values[batch]
-                critic_loss = (returns-critic_value)**2
-                critic_loss = critic_loss.mean()
+                value_clipped = values[batch] + T.clamp(critic_value - values[batch], -self.value_clip, self.value_clip)
+                critic_loss1 = (returns - critic_value) ** 2
+                critic_loss2 = (returns - value_clipped) ** 2
+                critic_loss = 0.5 * T.max(critic_loss1, critic_loss2).mean()
 
-                total_loss = actor_loss + 0.5*critic_loss
+                # Add entropy bonus for exploration
+                dist_entropy = dist.entropy().mean()
+
+                # Combine all losses
+                total_loss = actor_loss + 0.5 * critic_loss - self.entropy_coefficient * dist_entropy
+
+                # logging loss
+                critic_losses.append(critic_loss.item())
+                actor_losses.append(actor_loss.item()) 
+                total_losses.append(total_loss.item())
+
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
                 total_loss.backward()
+
+                # Clip gradients for stability
+                T.nn.utils.clip_grad_norm_(self.actor.parameters(), self.max_grad_norm)
+                T.nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
+
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
 
-        self.memory.clear_memory()               
+        self.memory.clear_memory()
+        self.actor_loss = stat.mean(actor_losses)
+        self.critic_loss = stat.mean(critic_losses)
+        self.total_loss = stat.mean(total_losses)
+        
