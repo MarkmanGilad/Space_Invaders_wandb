@@ -73,8 +73,8 @@ class Environment:
             self.spaceship.move_right()
         elif action == 3:
             self.spaceship.shoot ()
-            # if self.spaceship.ammunition > 0:
-            #     reward -= 0.05              # don't waste ammunition
+            if self.spaceship.ammunition > 0:
+                reward -= 0.02              # don't waste ammunition
         self.update()
         self.draw()
         hits = self.hits()
@@ -85,7 +85,7 @@ class Environment:
         self.score += hits
         done = self.is_end_of_Game()
         if done:
-            reward -= 5
+            reward -= 1
         return reward, done
     
     def is_end_of_stage (self):

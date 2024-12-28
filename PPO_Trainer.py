@@ -5,6 +5,7 @@ from Environment import Environment
 import numpy as np
 from PPO_Agent import PPO_Agent
 from Graphics import Graphics
+from collections import deque
 import os
 import wandb
 
@@ -32,9 +33,10 @@ class Trainer:
         self.graphics = Graphics()
         self.env = Environment(surface=self.graphics.main_surf)
         self.chkpt = chkpt
+        self.logger = Logger(chkpt)
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        self.agent = PPO_Agent(chkpt=self.chkpt)
+        self.agent = PPO_Agent(chkpt=self.chkpt, logger = self.logger)
         self.init_params()
         self.checkpoint_path = f"Data/PPO_checkpt{self.chkpt}.pth"
         self.resume_wandb = False
@@ -63,7 +65,7 @@ class Trainer:
             self.agent.optim_step,
             self.agent.optim_gamma
         )
-    
+
     def init_params(self):
         """
         Initialize hyperparameters and optimizer settings.
@@ -71,7 +73,7 @@ class Trainer:
         Args:
             n_step (int): Number of steps for n-step returns.
         """
-        self.n_steps = 1024
+        self.n_steps = 2048
         self.epochs = 30000
         self.start_epoch = 1
         self.step = 0
@@ -137,14 +139,17 @@ class Trainer:
         Args:
             epoch (int): Current training epoch.
         """
+        if epoch % 10==0:
+            self.logger.save()
+
         if epoch % self.save_epoch != 0:
             return
         torch.save({
             'epoch': epoch,
             'actor_state_dict': self.agent.actor.state_dict(),
             'critic_state_dict': self.agent.critic.state_dict(),
-            'actor_optim_state_dict': self.agent.actor.optimizer.optim.state_dict(),
-            'critic_optim_state_dict': self.agent.critic.optimizer.optim.state_dict(),
+            'actor_optim_state_dict': self.agent.actor.optimizer.state_dict(),
+            'critic_optim_state_dict': self.agent.critic.optimizer.state_dict(),
             'actor_scheduler_state_dict': self.agent.actor.scheduler.state_dict(),
             'critic_scheduler_state_dict': self.agent.critic.scheduler.state_dict(),
         }, self.checkpoint_path)
@@ -165,6 +170,14 @@ class Trainer:
             f'score: {self.env.score} level: {self.env.level}'
             
         )
+        self.logger.log('actor_loss', self.agent.actor_loss)
+        self.logger.log('critic_loss', self.agent.critic_loss)
+        self.logger.log('total_loss', self.agent.total_loss)
+        self.logger.log('actor_lr', self.agent.actor.scheduler.get_last_lr())
+        self.logger.log('critic_lr', self.agent.critic.scheduler.get_last_lr())
+        self.logger.log('score', self.env.score)
+        self.logger.log('level', self.env.level)
+
         self.best_score = max(self.best_score, self.env.score)
         # Log and compute average every 10 epochs
         if epoch % log_epoch == 0:
@@ -237,8 +250,50 @@ class WandB:
         """
         wandb.log({"score": score, "actor_loss": actor_loss, "critic_loss":critic_loss, "total_loss":total_loss, "avg_score": avg})
 
+class Logger:
+    '''
+            'actor_loss': [],
+            'critic_loss': [],
+            'total_loss': [],
+            'actor_lr': [],
+            'critic_lr': [],
+            'score': [],
+            'level': [],
+            'max_actor_grad': [],
+            'max_critic_grad': [],
+            'advantage_mean': [],
+            'advantage_std': [],
+        '''
+        
+    def __init__(self, chkpt, maxlen = 100):
+        self.chkpt = chkpt
+        self.log_dict = {}
+        self.maxlen = maxlen
+    
+    def log (self, key, value):
+        if key not in self.log_dict:
+            self.log_dict[key] = deque(maxlen=self.maxlen)    
+        self.log_dict[key].append(value)
+
+    def save (self):
+        torch.save(self.log_dict, f'Data/logger{self.chkpt}.pth',)
+
+    def load (self):
+        self.log_dict = torch.load(f'Data/logger{self.chkpt}.pth', weights_only=False)
+    
+    def print_key(self, key =None, range=10):
+        print(key)
+        print(list(self.log_dict[key])[-range:])
+    
+    def print_all(self):
+        for key, item in self.log_dict.items():
+            print (key, "\t", item)
+    
+    def print_keys(self):
+        for key in self.log_dict:
+            print(key)
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=1)
+    trainer = Trainer(chkpt=20)
     trainer.train()
