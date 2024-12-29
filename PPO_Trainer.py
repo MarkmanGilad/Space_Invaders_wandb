@@ -41,30 +41,7 @@ class Trainer:
         self.checkpoint_path = f"Data/PPO_checkpt{self.chkpt}.pth"
         self.resume_wandb = False
         self.load_checkpoint()
-
-        self.wb = WandB(
-            "Space_Invaders_PPO",
-            self.resume_wandb,
-            self.chkpt,
-            self.checkpoint_path,
-            self.epochs,
-            self.n_steps,
-            self.device,
-            self.agent.actor,
-            self.agent.critic,
-            self.agent.gamma,
-            self.agent.policy_clip,
-            self.agent.value_clip,
-            self.agent.n_epochs,
-            self.agent.gae_lambda,
-            self.agent.entropy_coefficient,
-            self.agent.max_grad_norm,
-            self.agent.batch_size,
-            self.agent.lr_actor,
-            self.agent.lr_critic,
-            self.agent.optim_step,
-            self.agent.optim_gamma
-        )
+        self.wand_init("Space_Invaders_PPO")
 
     def init_params(self):
         """
@@ -184,63 +161,43 @@ class Trainer:
             self.scores.append(self.env.score)
             self.avg = sum(self.scores) / len(self.scores)
             self.avg_score.append(self.avg)
-            self.wb.log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
+            self.wandb_log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
                         total_loss=self.agent.total_loss, avg=self.avg)
-           
-
-class WandB:
-    """
-    WandB class for logging metrics to Weights & Biases.
-    """
-    def __init__(self, project_name, resume, chkpt, checkpoint_path, epochs, n_steps, device, actor_model, critic_model,
-                 gamma, policy_clip, value_clip, n_epochs, gae_lambda, entropy_coefficient, max_grad_norm, batch_size,
-                 lr_actor, lr_critic, optim_step, optim_gamma):
-        """
-        Initialize the WandB logger.
-
-        Args:
-            project_name (str): Name of the project.
-            resume (bool): Whether to resume logging.
-            chkpt (int): Run identifier.
-            checkpoint_path (str): Path to save checkpoints.
-            learning_rate (float): Learning rate for the optimizer.
-            epochs (int): Total number of epochs.
-            start_epoch (int): Starting epoch.
-            gamma (float): Discount factor.
-            model (str): Model description.
-            device (str): Device used (CPU or GPU).
-        """
+    
+    def wand_init(self, project_name):
     
         wandb.init(
             project=project_name,
-            resume=resume,
-            id=f'{project_name} {chkpt}',
+            resume=self.resume_wandb,
+            id=f'{project_name} {self.chkpt}',
             config={
-                "name": f"{project_name} {chkpt}",
-                "checkpoint": checkpoint_path,
-                "epochs": epochs,
-                "n_steps": n_steps, 
-                "device": str(device),
-                "actor_model":str(actor_model), 
-                "critic_model":str(critic_model),
-                 "gamma":gamma, 
-                 "policy_clip":policy_clip, 
-                 "value_clip":value_clip, 
-                 "n_epochs":n_epochs, 
-                 "gae_lambda":gae_lambda, 
-                 "entropy_coefficient":entropy_coefficient, 
-                 "max_grad_norm":max_grad_norm, 
-                 "batch_size":batch_size,
-                 "lr_actor":lr_actor, 
-                 "lr_critic":lr_critic, 
-                 "optim_step":optim_step, 
-                 "optim_gamma":optim_gamma,
-                 
-                
+                "name": f"{project_name} {self.chkpt}",
+                "checkpoint": self.checkpoint_path,
+                "epochs": self.epochs,
+                "n_steps": self.n_steps, 
+                "device": str(self.device),
+                "actor_model":str(self.agent.actor), 
+                "critic_model":str(self.agent.critic),
+                 "gamma":self.agent.gamma, 
+                 "policy_clip":self.agent.policy_clip, 
+                 "value_clip":self.agent.value_clip, 
+                 "n_epochs":self.agent.n_epochs, 
+                 "gae_lambda":self.agent.gae_lambda, 
+                 "entropy_coefficient":self.agent.entropy_coefficient, 
+                 "max_grad_norm":self.agent.max_grad_norm, 
+                 "batch_size":self.agent.batch_size,
+                 "lr_actor":self.agent.lr_actor, 
+                 "lr_critic":self.agent.lr_critic, 
+                 "optim_step":self.agent.optim_step, 
+                 "optim_gamma":self.agent.optim_gamma,
+                 "reward_hit":self.env.hit,
+                 "reward_end_of_game": self.env.end_of_game,
+                 "reward_end_of_stage": self.env.end_of_stage,
+                 "reward_amunition": self.env.amunition,                
             },
         )
         
-    def log(self, score, actor_loss, critic_loss, total_loss, avg):
+    def wandb_log(self, score, actor_loss, critic_loss, total_loss, avg):
         """
         Log training metrics to WandB.
 
