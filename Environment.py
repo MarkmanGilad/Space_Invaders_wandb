@@ -23,6 +23,14 @@ class Environment:
         self.level = 1
         self.ground = Ground()
         self.ground_Group = pygame.sprite.GroupSingle(self.ground)
+        self.init_rewards()
+
+    def init_rewards (self):
+        self.end_of_game = -100
+        self.end_of_stage = 100
+        self.hit = 10
+        self.amunition = -1
+
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
@@ -74,18 +82,18 @@ class Environment:
         elif action == 3:
             self.spaceship.shoot ()
             if self.spaceship.ammunition > 0:
-                reward -= 0.02              # don't waste ammunition
+                reward += self.amunition              # don't waste ammunition
         self.update()
         self.draw()
         hits = self.hits()
-        reward +=  hits * 0.1
+        reward +=  hits * self.hit
         if self.is_end_of_stage():
-            reward += .5
+            reward += self.end_of_stage
             self.restart(add_speed=1, add_shoot_factor=0.1, new_game=False)
         self.score += hits
         done = self.is_end_of_Game()
         if done:
-            reward -= 1
+            reward += self.end_of_game
         return reward, done
     
     def is_end_of_stage (self):

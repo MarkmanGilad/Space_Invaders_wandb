@@ -2,10 +2,10 @@ import pygame
 from CONSTANTS import *
 
 class Bullet (pygame.sprite.Sprite):
-    def __init__(self, pos, speed_x=0, speed_y= -10) -> None:
+    def __init__(self, pos, speed_x=0, speed_y= -10, color = RED) -> None:
         super().__init__()
         self.image = pygame.Surface((5,5))
-        self.image.fill(RED)
+        self.image.fill(color)
         self.rect = self.image.get_rect(midbottom = pos)
         self.mask = pygame.mask.from_surface(self.image)
         self.speed_x = speed_x

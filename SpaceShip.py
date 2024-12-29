@@ -29,7 +29,7 @@ class SpaceShip (pygame.sprite.Sprite):
 
     def shoot (self):
         if self.ammunition > 0 and len(self.bullets_Group) < self.burst:
-            self.bullets_Group.add(Bullet(self.rect.midtop,speed_y= -SPACESHIP_BULLET_SPEED))
+            self.bullets_Group.add(Bullet(self.rect.midtop,speed_y= -SPACESHIP_BULLET_SPEED, color=GREEN))
             self.ammunition -= 1
 
     def action (self, action):

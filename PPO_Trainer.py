@@ -177,7 +177,7 @@ class Trainer:
         self.logger.log('critic_lr', self.agent.critic.scheduler.get_last_lr())
         self.logger.log('score', self.env.score)
         self.logger.log('level', self.env.level)
-
+        
         self.best_score = max(self.best_score, self.env.score)
         # Log and compute average every 10 epochs
         if epoch % log_epoch == 0:
@@ -234,7 +234,8 @@ class WandB:
                  "lr_actor":lr_actor, 
                  "lr_critic":lr_critic, 
                  "optim_step":optim_step, 
-                 "optim_gamma":optim_gamma
+                 "optim_gamma":optim_gamma,
+                 
                 
             },
         )
@@ -295,5 +296,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=20)
+    trainer = Trainer(chkpt=25)
     trainer.train()

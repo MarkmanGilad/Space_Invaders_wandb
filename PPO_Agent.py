@@ -64,7 +64,7 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=512, fc2_dims=2048, chkpt=1, optim_step = 100, optim_gamma = 0.9):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
@@ -96,7 +96,7 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, lr, fc1_dims=512, fc2_dims=2048, chkpt=1, optim_step = 100, optim_gamma = 0.9):
+    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9):
         super(CriticNetwork, self).__init__()
 
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
@@ -131,15 +131,15 @@ class PPO_Agent:
     def __init__(self, chkpt, input_dims=88, n_actions=4, logger=None):
         self.gamma = 0.99
         self.policy_clip = 0.2
-        self.value_clip = 0.2  
-        self.n_epochs = 10
-        self.gae_lambda = 0.95
-        self.entropy_coefficient = 0.01  
+        self.value_clip = 1  
+        self.n_epochs = 5
+        self.gae_lambda = 0.90
+        self.entropy_coefficient = 0.05  
         self.max_grad_norm = 0.5  
         self.batch_size = 64
-        self.lr_actor = 0.0003
-        self.lr_critic = 0.0003
-        self.optim_step = 1000
+        self.lr_actor = 0.001
+        self.lr_critic = 0.001
+        self.optim_step = 5000
         self.optim_gamma = 0.9
         self.logger = logger
         
@@ -208,6 +208,9 @@ class PPO_Agent:
         total_losses = [] # for logging
         
         state_arr, action_arr, old_prob_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
+        # Normalize rewards
+        # reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
+
         advantage = self.calculate_advantage(reward_arr, val_arr, done_arr)
         values = T.tensor(val_arr).to(self.actor.device)
 
