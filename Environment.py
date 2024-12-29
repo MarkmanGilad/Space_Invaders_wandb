@@ -123,52 +123,55 @@ class Environment:
         normX = self.normX
         normY = self.normY
         normS = self.normSpeed
-        enemy_ships = ENEMY_COLS * ENEMY_ROWS * 3              # x,y,speed 3 * 6 * 3 = 54  
+        enemy_ships = ENEMY_COLS * ENEMY_ROWS * 4               # 3 * 6 * 4 = 72  exists, x,y,speed 
         enemy_speed_y = 1                                       # 1
-        enemy_bullets = MAX_ENEMY_BULLETS * 2         # 10 * 2 = 20
+        enemy_bullets = MAX_ENEMY_BULLETS * 3                   # 10 * 3 = 30     exists, x, y
         enemy_bullet_speed_y = 1                                # 1
         SpaceShip_pos_shape = 2                                 # 2
         SpaceShip_speed_x = 1                                   # 1
-        SpaceShip_Bullet_pos_shape = SPACE_SHIP_BURST * 2       # 3 * 2 = 6
+        SpaceShip_Bullet_pos_shape = SPACE_SHIP_BURST * 3       # 3 * 3 = 9       exists, x, y
         SpaceShip_bullets_speed_y = 1                           # 1
         SpaceShip_ammunition = 1                                # 1
         level = 1                                               # 1
-        # score = 1                                               # 1
+        # score = 1                                             
         total = enemy_ships + enemy_speed_y + enemy_bullets + enemy_bullet_speed_y + SpaceShip_pos_shape + SpaceShip_speed_x + \
         SpaceShip_Bullet_pos_shape + SpaceShip_bullets_speed_y + SpaceShip_ammunition + level 
-        # total = 88
+        # total = 119
         
         state_list = []
-        # 0 - 53
-        index = 0                                           # 0 - 53
+        # 0 - 71
+        index = 0                                                   # 0 - 71
         for sprite in self.enemy_Group:
+            state_list.append(1)
             state_list.append(normX(sprite.rect.centerx))
             state_list.append(normY(sprite.rect.centery))
             state_list.append(normS(sprite.speed_x))
-            index += 3
+            index += 4
         for i in range(enemy_ships-index):
             state_list.append(0)
-        state_list.append(normS(Enemy.speed_y))                    # 54
+        state_list.append(normS(Enemy.speed_y))                     # 72
         index = 0
-        for sprite in self.enemy_bullets_Group:             # 55 - 74
+        for sprite in self.enemy_bullets_Group:                     # 73 - 102
+            state_list.append(1)
             state_list.append(normX(sprite.rect.centerx))
             state_list.append(normY(sprite.rect.centery))
-            index += 2
+            index += 3
         for i in range(enemy_bullets-index):
             state_list.append(0)
-        state_list.append(normS(ENEMY_BULLET_SPEED))               # 75
-        state_list.append(normX(self.spaceship.rect.centerx))      # 76
-        state_list.append(normY(self.spaceship.rect.centery))      # 77
-        state_list.append(normS(SPACESHIP_SPEED))                  # 78
+        state_list.append(normS(ENEMY_BULLET_SPEED))               # 103
+        state_list.append(normX(self.spaceship.rect.centerx))      # 104
+        state_list.append(normY(self.spaceship.rect.centery))      # 105
+        state_list.append(normS(SPACESHIP_SPEED))                  # 106
         index = 0
-        for sprite in self.bullets_Group:                   # 79 - 84
+        for sprite in self.bullets_Group:                          # 106 - 114
+            state_list.append(1)
             state_list.append(normX(sprite.rect.centerx))
             state_list.append(normY(sprite.rect.centery))
-            index += 2
+            index += 3
         for i in range(SpaceShip_Bullet_pos_shape-index):
             state_list.append(0)
-        state_list.append(normS(SPACESHIP_BULLET_SPEED))           # 85
-        state_list.append(self.spaceship.ammunition/100)        # 86
-        state_list.append(self.level)                       # 87
-        # state_list.append(self.score)                       # 88
+        state_list.append(normS(SPACESHIP_BULLET_SPEED))            # 115
+        state_list.append(self.spaceship.ammunition/100)            # 116
+        state_list.append(self.level)                               # 118
+        # state_list.append(self.score)                             
         return torch.tensor(state_list, dtype=torch.float32)
