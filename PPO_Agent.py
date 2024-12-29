@@ -167,7 +167,7 @@ class PPO_Agent:
             value = self.critic(state)
         action = dist.sample().item()
         # prob = dist.probs[action].item()
-        log_prob = dist.log_prob(T.tensor(action)).item()
+        log_prob = dist.log_prob(T.tensor(action, device=self.actor.device)).item()
         value = value.item()
 
         return action, log_prob, value
@@ -227,7 +227,7 @@ class PPO_Agent:
                 critic_value = self.critic(states)
                 critic_value = T.squeeze(critic_value)
 
-                new_log_probs = dist.log_probs(actions)
+                new_log_probs = dist.log_prob(actions)
 
                 # Ratio of new and old probabilities (exp(log-probs))
                 prob_ratio = T.exp(new_log_probs - old_log_probs)
