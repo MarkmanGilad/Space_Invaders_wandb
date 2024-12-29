@@ -26,10 +26,10 @@ class Environment:
         self.init_rewards()
 
     def init_rewards (self):
-        self.end_of_game = -100
-        self.end_of_stage = 100
-        self.hit = 10
-        self.amunition = -1
+        self.end_of_game = -1
+        self.end_of_stage = 10
+        self.hit = 3
+        self.amunition = -0.3
 
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):

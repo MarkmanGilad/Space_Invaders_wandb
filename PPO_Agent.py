@@ -64,7 +64,7 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
