@@ -204,10 +204,11 @@ class PPO_Agent:
         return advantage_norm
         
     def learn(self, epoch):
-        actor_losses = []  # for logging
+        actor_losses = []   # for logging
         critic_losses = []  # for logging
-        total_losses = [] # for logging
-        
+        total_losses = []   # for logging
+        entropy = []        # for logging
+
         state_arr, action_arr, old_log_probs_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
         # Normalize rewards
         # reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
@@ -253,6 +254,7 @@ class PPO_Agent:
                 critic_losses.append(critic_loss.item())
                 actor_losses.append(actor_loss.item()) 
                 total_losses.append(total_loss.item())
+                entropy.append(dist_entropy.item())
 
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
@@ -276,4 +278,5 @@ class PPO_Agent:
         self.actor_loss = stat.mean(actor_losses)
         self.critic_loss = stat.mean(critic_losses)
         self.total_loss = stat.mean(total_losses)
+        self.entropy = stat.mean(entropy)
         

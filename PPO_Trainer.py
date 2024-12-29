@@ -150,6 +150,7 @@ class Trainer:
         self.logger.log('actor_loss', self.agent.actor_loss)
         self.logger.log('critic_loss', self.agent.critic_loss)
         self.logger.log('total_loss', self.agent.total_loss)
+        self.logger.log('entropy', self.agent.entropy)
         self.logger.log('actor_lr', self.agent.actor.scheduler.get_last_lr())
         self.logger.log('critic_lr', self.agent.critic.scheduler.get_last_lr())
         self.logger.log('score', self.env.score)
@@ -162,7 +163,7 @@ class Trainer:
             self.avg = sum(self.scores) / len(self.scores)
             self.avg_score.append(self.avg)
             self.wandb_log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
-                        total_loss=self.agent.total_loss, avg=self.avg)
+                        total_loss=self.agent.total_loss, avg=self.avg, entropy=self.agent.entropy)
     
     def wand_init(self, project_name):
     
@@ -197,16 +198,9 @@ class Trainer:
             },
         )
         
-    def wandb_log(self, score, actor_loss, critic_loss, total_loss, avg):
-        """
-        Log training metrics to WandB.
-
-        Args:
-            score (float): Current score.
-            loss (float): Current loss.
-            avg (float): Average score.
-        """
-        wandb.log({"score": score, "actor_loss": actor_loss, "critic_loss":critic_loss, "total_loss":total_loss, "avg_score": avg})
+    def wandb_log(self, score, actor_loss, critic_loss, total_loss, avg, entropy):
+        wandb.log({"score": score, "actor_loss": actor_loss, "critic_loss":critic_loss,
+                    "total_loss":total_loss, "avg_score": avg, 'entropy': entropy})
 
 class Logger:
     '''
@@ -253,5 +247,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=28)
+    trainer = Trainer(chkpt=30)
     trainer.train()
