@@ -77,9 +77,9 @@ class Trainer:
                 self.graphics.clear()
                 self.graphics.event_pump()
                 self.graphics.events()
-                action, prob, val = agent.choose_action(state)
+                action, log_prob, val = agent.choose_action(state)
                 reward, done = self.env.move(action=action)
-                agent.remember(state, action, prob, val, reward, done)
+                agent.remember(state, action, log_prob, val, reward, done)
                 self.step += 1
                 # if self.step % 10 == 0:
                     # print(f'self.step: {self.step} action: {action} prob: {prob} val: {val}')

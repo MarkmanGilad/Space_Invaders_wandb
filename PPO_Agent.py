@@ -21,7 +21,7 @@ import statistics as stat
 class PPOMemory:
     def __init__(self, batch_size):
         self.states = []
-        self.probs = []
+        self.log_probs = []
         self.vals = []
         self.actions = []
         self.rewards = []
@@ -41,23 +41,23 @@ class PPOMemory:
     def get_arrays(self):
         return np.array(self.states),\
                 np.array(self.actions),\
-                np.array(self.probs),\
+                np.array(self.log_probs),\
                 np.array(self.vals),\
                 np.array(self.rewards),\
                 np.array(self.dones)
         
 
-    def store_memory(self, state, action, probs, vals, reward, done):
+    def store_memory(self, state, action, log_probs, vals, reward, done):
         self.states.append(state)
         self.actions.append(action)
-        self.probs.append(probs)
+        self.log_probs.append(log_probs)
         self.vals.append(vals)
         self.rewards.append(reward)
         self.dones.append(done)
 
     def clear_memory(self):
         self.states = []
-        self.probs = []
+        self.log_probs = []
         self.actions = []
         self.rewards = []
         self.dones = []
@@ -166,10 +166,11 @@ class PPO_Agent:
             dist = self.actor(state)
             value = self.critic(state)
         action = dist.sample().item()
-        prob = dist.probs[action].item()
+        # prob = dist.probs[action].item()
+        log_prob = dist.log_prob(T.tensor(action)).item()
         value = value.item()
 
-        return action, prob, value
+        return action, log_prob, value
 
     def calculate_advantage (self, reward_arr, val_arr, done_arr):
         advantage = np.zeros(len(reward_arr), dtype=np.float32)
@@ -207,7 +208,7 @@ class PPO_Agent:
         critic_losses = []  # for logging
         total_losses = [] # for logging
         
-        state_arr, action_arr, old_prob_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
+        state_arr, action_arr, old_log_probs_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
         # Normalize rewards
         # reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
 
@@ -219,17 +220,17 @@ class PPO_Agent:
         
             for batch in batches:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
-                old_probs = T.tensor(old_prob_arr[batch]).to(self.actor.device)
+                old_log_probs = T.tensor(old_log_probs_arr[batch]).to(self.actor.device)
                 actions = T.tensor(action_arr[batch]).to(self.actor.device)
 
                 dist = self.actor(states)
                 critic_value = self.critic(states)
                 critic_value = T.squeeze(critic_value)
 
-                new_probs = dist.probs[T.arange(dist.probs.size(0)), actions]
+                new_log_probs = dist.log_probs(actions)
 
                 # Ratio of new and old probabilities (exp(log-probs))
-                prob_ratio = new_probs / old_probs
+                prob_ratio = T.exp(new_log_probs - old_log_probs)
 
                 weighted_probs = advantage[batch] * prob_ratio
                 weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantage[batch]
