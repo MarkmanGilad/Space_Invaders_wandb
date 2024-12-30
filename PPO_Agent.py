@@ -86,7 +86,16 @@ class ActorNetwork(nn.Module):
         x = self.fc3(x)
         x = self.relu(x)
         x = self.fc4(x)
-        dist = Categorical(logits=x)
+        try:
+            dist = Categorical(logits=x)
+        except:
+            self.logger.log('state', state)
+            self.logger.log('logits', x)
+            self.logger.log('actor params', self.get_all_params_as_list())
+            self.logger.save()
+            raise 
+        
+        
         return dist
 
     def save_checkpoint(self):
@@ -95,8 +104,13 @@ class ActorNetwork(nn.Module):
     def load_checkpoint(self):
         self.load_state_dict(T.load(self.checkpoint_file))
 
+    def get_all_params_as_list(self):
+        params = [p.data.cpu().numpy().flatten() for p in self.parameters()]
+        return [param for sublist in params for param in sublist]  # Flatten the nested lists
+
+
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9):
+    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9):
         super(CriticNetwork, self).__init__()
 
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
@@ -136,7 +150,7 @@ class PPO_Agent:
         self.gae_lambda = 0.90
         self.entropy_coefficient = 0.05  
         self.max_grad_norm = 0.5  
-        self.batch_size = 64
+        self.batch_size = 128
         self.lr_actor = 0.001
         self.lr_critic = 0.001
         self.optim_step = 5000
@@ -191,9 +205,9 @@ class PPO_Agent:
         try:
             advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
         except:
-            self.log('advantage', advantage)
-            self.log('reward_arr', reward_arr)
-            self.log('val_arr', val_arr)
+            self.logger.log('advantage', advantage)
+            self.logger.log('reward_arr', reward_arr)
+            self.logger.log('val_arr', val_arr)
             self.logger.save()
             raise 
         
