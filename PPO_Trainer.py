@@ -41,7 +41,8 @@ class Trainer:
         self.checkpoint_path = f"Data/PPO_checkpt{self.chkpt}.pth"
         self.resume_wandb = False
         self.load_checkpoint()
-        self.wand_init("Space_Invaders_PPO")
+        self.wandb = self.wandb_init()
+        self.agent.wandb = self.wandb
 
     def init_params(self):
         """
@@ -61,6 +62,35 @@ class Trainer:
         self.losses = []
         self.avg_score = []
     
+    def wandb_init(self):
+        project_name = "Space_Invaders_PPO"
+        config={
+                "name": f"{project_name} {self.chkpt}",
+                "checkpoint": self.checkpoint_path,
+                "epochs": self.epochs,
+                "n_steps": self.n_steps, 
+                "device": str(self.device),
+                "actor_model":str(self.agent.actor), 
+                "critic_model":str(self.agent.critic),
+                 "gamma":self.agent.gamma, 
+                 "policy_clip":self.agent.policy_clip, 
+                 "value_clip":self.agent.value_clip, 
+                 "n_epochs":self.agent.n_epochs, 
+                 "gae_lambda":self.agent.gae_lambda, 
+                 "entropy_coefficient":self.agent.entropy_coefficient, 
+                 "max_grad_norm":self.agent.max_grad_norm, 
+                 "batch_size":self.agent.batch_size,
+                 "lr_actor":self.agent.lr_actor, 
+                 "lr_critic":self.agent.lr_critic, 
+                 "optim_step":self.agent.optim_step, 
+                 "optim_gamma":self.agent.optim_gamma,
+                 "reward_hit":self.env.hit,
+                 "reward_end_of_game": self.env.end_of_game,
+                 "reward_end_of_stage": self.env.end_of_stage,
+                 "reward_amunition": self.env.amunition,                
+            }
+        return WandB(project_name, self.chkpt, config, self.resume_wandb)
+
     def train(self, epochs = 50000):
         """
         Run the training loop for the agent.
@@ -162,48 +192,33 @@ class Trainer:
             self.scores.append(self.env.score)
             self.avg = sum(self.scores) / len(self.scores)
             self.avg_score.append(self.avg)
-            self.wandb_log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
-                        total_loss=self.agent.total_loss, avg=self.avg, entropy=self.agent.entropy,
-                        advantage_mean=self.agent.advantage_mean, advantage_std = self.agent.advantage_std, advantage_norm=self.agent.advantage_norm)
-    
-    def wand_init(self, project_name):
-    
+            
+            self.wandb(score = self.env.score, actor_loss = self.agent.actor_loss, critic_loss = self.agent.critic_loss,
+                       total_loss = self.agent.total_loss, avg = self.avg, entropy = self.agent.entropy, 
+                       advantage_mean = self.agent.advantage_mean, advantage_std = self.agent.advantage_std,
+                       advantage_norm = self.agent.advantage_norm )
+            self.wandb.log()
+
+class WandB:
+    def __init__(self, project_name, chkpt, config, resume):
+        self.wandb_dict = {}
         wandb.init(
             project=project_name,
-            resume=self.resume_wandb,
-            id=f'{project_name} {self.chkpt}',
-            config={
-                "name": f"{project_name} {self.chkpt}",
-                "checkpoint": self.checkpoint_path,
-                "epochs": self.epochs,
-                "n_steps": self.n_steps, 
-                "device": str(self.device),
-                "actor_model":str(self.agent.actor), 
-                "critic_model":str(self.agent.critic),
-                 "gamma":self.agent.gamma, 
-                 "policy_clip":self.agent.policy_clip, 
-                 "value_clip":self.agent.value_clip, 
-                 "n_epochs":self.agent.n_epochs, 
-                 "gae_lambda":self.agent.gae_lambda, 
-                 "entropy_coefficient":self.agent.entropy_coefficient, 
-                 "max_grad_norm":self.agent.max_grad_norm, 
-                 "batch_size":self.agent.batch_size,
-                 "lr_actor":self.agent.lr_actor, 
-                 "lr_critic":self.agent.lr_critic, 
-                 "optim_step":self.agent.optim_step, 
-                 "optim_gamma":self.agent.optim_gamma,
-                 "reward_hit":self.env.hit,
-                 "reward_end_of_game": self.env.end_of_game,
-                 "reward_end_of_stage": self.env.end_of_stage,
-                 "reward_amunition": self.env.amunition,                
-            },
+            resume=resume,
+            id=f'{project_name} {chkpt}',
+            config=config,
         )
-        
-    def wandb_log(self, score, actor_loss, critic_loss, total_loss, avg, entropy, advantage_mean, advantage_std, advantage_norm):
-        wandb.log({"score": score, "actor_loss": actor_loss, "critic_loss":critic_loss,
-                    "total_loss":total_loss, "avg_score": avg, 'entropy': entropy,
-                    'advantage_mean': advantage_mean, 'advantage_std': advantage_std, 'advantage_norm_mean': advantage_norm})
 
+    def update_dict (self, **kwds):
+        self.wandb_dict.update(kwds)
+
+    def log (self):
+        wandb.log(self.wandb_dict)
+        self.wandb_dict = {}
+
+    def __call__(self, *args, **kwds):
+        self.update_dict(**kwds)
+    
 class Logger:
         
     def __init__(self, chkpt, maxlen = 100):
@@ -236,5 +251,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=41)
+    trainer = Trainer(chkpt=42)
     trainer.train()
