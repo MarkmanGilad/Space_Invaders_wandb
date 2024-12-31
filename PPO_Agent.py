@@ -201,22 +201,24 @@ class PPO_Agent:
             future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
             advantage[t] = future_advantage
         
-            try:
-                advantage = T.tensor(advantage).to(self.actor.device)
-                # Normalization (optional)
-                advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-            except:
-                self.logger.log('advantage', advantage)
-                self.logger.log('reward_arr', reward_arr)
-                self.logger.log('val_arr', val_arr)
-                self.logger.save()
-                raise 
+        try:
+            advantage = T.tensor(advantage).to(self.actor.device)
+            # Normalization (optional)
+            advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+        except:
+            self.logger.log('advantage', advantage)
+            self.logger.log('reward_arr', reward_arr)
+            self.logger.log('val_arr', val_arr)
+            self.logger.save()
+            raise 
         
         #log
         self.advantage_mean = advantage.mean().item()
         self.advantage_std = advantage.std().item()
+        self.advantage_norm = advantage_norm.mean()
         self.logger.log('advantage_mean',self.advantage_mean)
         self.logger.log('advantage_std', self.advantage_std)
+        self.logger.log('advantage_norm', self.advantage_norm)
         
         return advantage_norm
         

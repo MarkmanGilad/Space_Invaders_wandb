@@ -164,7 +164,7 @@ class Trainer:
             self.avg_score.append(self.avg)
             self.wandb_log(score=self.env.score, actor_loss=self.agent.actor_loss,critic_loss=self.agent.critic_loss, 
                         total_loss=self.agent.total_loss, avg=self.avg, entropy=self.agent.entropy,
-                        advantage_mean=self.agent.advantage_mean, advantage_std = self.agent.advantage_std)
+                        advantage_mean=self.agent.advantage_mean, advantage_std = self.agent.advantage_std, advantage_norm=self.agent.advantage_norm)
     
     def wand_init(self, project_name):
     
@@ -199,10 +199,10 @@ class Trainer:
             },
         )
         
-    def wandb_log(self, score, actor_loss, critic_loss, total_loss, avg, entropy, advantage_mean, advantage_std):
+    def wandb_log(self, score, actor_loss, critic_loss, total_loss, avg, entropy, advantage_mean, advantage_std, advantage_norm):
         wandb.log({"score": score, "actor_loss": actor_loss, "critic_loss":critic_loss,
                     "total_loss":total_loss, "avg_score": avg, 'entropy': entropy,
-                    'advantage_mean': advantage_mean, 'advantage_std': advantage_std})
+                    'advantage_mean': advantage_mean, 'advantage_std': advantage_std, 'advantage_norm_mean': advantage_norm})
 
 class Logger:
     '''
@@ -249,5 +249,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=35)
+    trainer = Trainer(chkpt=41)
     trainer.train()
