@@ -143,7 +143,7 @@ class Trainer:
             f'chkpt: {self.chkpt} epoch: {epoch}',
             f'actor_loss: {self.agent.actor_loss:.5f} critic_loss: {self.agent.critic_loss:.5f}',
             f'total_loss: {self.agent.total_loss:.5f}',
-            f'actor_lr: {self.agent.actor.scheduler.get_last_lr()} critic_lr: {self.agent.critic.scheduler.get_last_lr()}',
+            f'actor_lr: {self.agent.actor.scheduler.get_last_lr()[0]:.5f} critic_lr: {self.agent.critic.scheduler.get_last_lr()[0]:.5f}',
             f'score: {self.env.score} level: {self.env.level}'
             
         )
