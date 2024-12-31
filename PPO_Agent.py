@@ -64,7 +64,7 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
@@ -157,8 +157,10 @@ class PPO_Agent:
         self.optim_gamma = 0.9
         self.logger = logger
         
-        self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, optim_gamma=self.optim_gamma)
-        self.critic = CriticNetwork(input_dims, self.lr_critic, chkpt=chkpt, optim_step=self.optim_step, optim_gamma=self.optim_gamma)
+        self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
+                                  optim_gamma=self.optim_gamma, logger=self.logger)
+        self.critic = CriticNetwork(input_dims, self.lr_critic, chkpt=chkpt, optim_step=self.optim_step, 
+                                    optim_gamma=self.optim_gamma)
         self.memory = PPOMemory(self.batch_size)
         
     def remember(self, state, action, probs, vals, reward, done):
@@ -199,17 +201,16 @@ class PPO_Agent:
             future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
             advantage[t] = future_advantage
         
-        advantage = T.tensor(advantage).to(self.actor.device)
-
-        # Normalization (optional)
-        try:
-            advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-        except:
-            self.logger.log('advantage', advantage)
-            self.logger.log('reward_arr', reward_arr)
-            self.logger.log('val_arr', val_arr)
-            self.logger.save()
-            raise 
+            try:
+                advantage = T.tensor(advantage).to(self.actor.device)
+                # Normalization (optional)
+                advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+            except:
+                self.logger.log('advantage', advantage)
+                self.logger.log('reward_arr', reward_arr)
+                self.logger.log('val_arr', val_arr)
+                self.logger.save()
+                raise 
         
         
         self.logger.log('advantage_mean',advantage.mean().item())
@@ -237,8 +238,14 @@ class PPO_Agent:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_log_probs = T.tensor(old_log_probs_arr[batch]).to(self.actor.device)
                 actions = T.tensor(action_arr[batch]).to(self.actor.device)
-
-                dist = self.actor(states)
+                try:
+                    dist = self.actor(states)
+                except:
+                    self.logger.log('advantage', advantage)
+                    self.logger.log('reward_arr', reward_arr)
+                    self.logger.log('val_arr', val_arr)
+                    self.logger.save()
+                    raise 
                 critic_value = self.critic(states)
                 critic_value = T.squeeze(critic_value)
 
