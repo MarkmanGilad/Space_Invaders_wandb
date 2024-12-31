@@ -205,19 +205,6 @@ class Trainer:
                     'advantage_mean': advantage_mean, 'advantage_std': advantage_std, 'advantage_norm_mean': advantage_norm})
 
 class Logger:
-    '''
-            'actor_loss': [],
-            'critic_loss': [],
-            'total_loss': [],
-            'actor_lr': [],
-            'critic_lr': [],
-            'score': [],
-            'level': [],
-            'max_actor_grad': [],
-            'max_critic_grad': [],
-            'advantage_mean': [],
-            'advantage_std': [],
-        '''
         
     def __init__(self, chkpt, maxlen = 100):
         self.chkpt = chkpt
