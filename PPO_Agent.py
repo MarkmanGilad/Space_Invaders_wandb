@@ -212,9 +212,11 @@ class PPO_Agent:
                 self.logger.save()
                 raise 
         
-        
-        self.logger.log('advantage_mean',advantage.mean().item())
-        self.logger.log('advantage_std',advantage.std().item())
+        #log
+        self.advantage_mean = advantage.mean().item()
+        self.advantage_std = advantage.std().item()
+        self.logger.log('advantage_mean',self.advantage_mean)
+        self.logger.log('advantage_std', self.advantage_std)
         
         return advantage_norm
         
@@ -300,4 +302,3 @@ class PPO_Agent:
         self.critic_loss = stat.mean(critic_losses)
         self.total_loss = stat.mean(total_losses)
         self.entropy = stat.mean(entropy)
-        

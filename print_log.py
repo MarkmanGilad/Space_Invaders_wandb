@@ -7,7 +7,7 @@ max_actor_grad  max_critic_grad
 advantage_mean  advantage_std
 '''
 
-logger = Logger(chkpt=32)
+logger = Logger(chkpt=34)
 logger.load()
 logger.print_keys()
 logger.print_all()
