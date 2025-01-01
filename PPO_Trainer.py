@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''skip episodes every 5 zeros reward step and action zero'''
+        self.remark = '''skip episodes'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -255,5 +255,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=51)
+    trainer = Trainer(chkpt=52)
     trainer.train()

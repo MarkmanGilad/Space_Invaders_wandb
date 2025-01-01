@@ -149,15 +149,15 @@ class PPO_Agent:
         self.gae_lambda = 0.97
         self.entropy_coefficient = 0.05  
         self.max_grad_norm = 0.5  
-        self.batch_size = 128
+        self.batch_size = 64
         self.lr_actor = 0.001
         self.lr_critic = 0.0001
         self.optim_step = 5000
         self.optim_gamma = 0.9
-        self.critic_actor_ratio = 0.05
+        self.critic_actor_ratio = 0.1
         self.logger = logger
         self.wandb = None   # will be updated by Trainer
-        self.frame_skip = 3
+        self.frame_skip = 5
 
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger)
@@ -167,10 +167,7 @@ class PPO_Agent:
         self.skip = 0   # counter for skipping memmory
 
     def remember(self, state, action, probs, vals, reward, done):
-        if reward == 0 and action == 0:
-            self.skip += 1
-            return
-        if reward == 0 and self.skip < self.frame_skip:
+        if (reward == 0 or reward == -0.05) and self.skip < self.frame_skip:
             self.skip +=1
             return
         self.skip = 0
