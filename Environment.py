@@ -28,7 +28,7 @@ class Environment:
     def init_rewards (self):
         self.end_of_game = -1
         self.end_of_stage = 10
-        self.hit = 3
+        self.hit = 5
         self.amunition = -0.1
 
 

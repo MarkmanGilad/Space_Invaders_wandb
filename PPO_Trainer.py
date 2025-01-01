@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''Reward are normalized across episode'''
+        self.remark = '''skip episodes every 5 zeros reward step and action zero'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -89,7 +89,9 @@ class Trainer:
                  "reward_end_of_game": self.env.end_of_game,
                  "reward_end_of_stage": self.env.end_of_stage,
                  "reward_amunition": self.env.amunition,
-                 'remark': remark,                
+                 'remark': remark,  
+                 'critic_actor_ratio': self.agent.critic_actor_ratio,
+                 'frame_skip': self.agent.frame_skip,              
             }
         return WandB(project_name, self.chkpt, config, self.resume_wandb)
 
@@ -253,5 +255,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=46)
+    trainer = Trainer(chkpt=51)
     trainer.train()

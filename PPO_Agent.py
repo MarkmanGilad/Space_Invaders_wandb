@@ -154,16 +154,26 @@ class PPO_Agent:
         self.lr_critic = 0.0001
         self.optim_step = 5000
         self.optim_gamma = 0.9
+        self.critic_actor_ratio = 0.05
         self.logger = logger
         self.wandb = None   # will be updated by Trainer
-        
+        self.frame_skip = 3
+
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger)
         self.critic = CriticNetwork(input_dims, self.lr_critic, chkpt=chkpt, optim_step=self.optim_step, 
                                     optim_gamma=self.optim_gamma)
         self.memory = PPOMemory(self.batch_size)
-        
+        self.skip = 0   # counter for skipping memmory
+
     def remember(self, state, action, probs, vals, reward, done):
+        if reward == 0 and action == 0:
+            self.skip += 1
+            return
+        if reward == 0 and self.skip < self.frame_skip:
+            self.skip +=1
+            return
+        self.skip = 0
         self.memory.store_memory(state, action, probs, vals, reward, done)
 
     def save_models(self):
@@ -273,7 +283,7 @@ class PPO_Agent:
                 dist_entropy = dist.entropy().mean()
 
                 # Combine all losses
-                total_loss = actor_loss + 0.05 * critic_loss - self.entropy_coefficient * dist_entropy
+                total_loss = actor_loss + self.critic_actor_ratio * critic_loss - self.entropy_coefficient * dist_entropy
 
                 # logging loss
                 critic_losses.append(critic_loss.item())
