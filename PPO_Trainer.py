@@ -41,7 +41,7 @@ class Trainer:
         self.checkpoint_path = f"Data/PPO_checkpt{self.chkpt}.pth"
         self.resume_wandb = False
         self.load_checkpoint()
-        self.wandb = self.wandb_init()
+        self.wandb = self.wandb_init(self.remark)
         self.agent.wandb = self.wandb
 
     def init_params(self):
@@ -58,11 +58,12 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
+        self.remark = '''Reward are normalized across episode'''
         self.scores = []
         self.losses = []
         self.avg_score = []
     
-    def wandb_init(self):
+    def wandb_init(self, remark):
         project_name = "Space_Invaders_PPO"
         config={
                 "name": f"{project_name} {self.chkpt}",
@@ -87,7 +88,8 @@ class Trainer:
                  "reward_hit":self.env.hit,
                  "reward_end_of_game": self.env.end_of_game,
                  "reward_end_of_stage": self.env.end_of_stage,
-                 "reward_amunition": self.env.amunition,                
+                 "reward_amunition": self.env.amunition,
+                 'remark': remark,                
             }
         return WandB(project_name, self.chkpt, config, self.resume_wandb)
 
@@ -251,5 +253,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=42)
+    trainer = Trainer(chkpt=46)
     trainer.train()

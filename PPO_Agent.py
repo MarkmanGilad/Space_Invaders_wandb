@@ -45,7 +45,6 @@ class PPOMemory:
                 np.array(self.vals),\
                 np.array(self.rewards),\
                 np.array(self.dones)
-        
 
     def store_memory(self, state, action, log_probs, vals, reward, done):
         self.states.append(state)
@@ -77,6 +76,7 @@ class ActorNetwork(nn.Module):
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=optim_step, gamma=optim_gamma)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
+        self.logger = logger
 
     def forward(self, state):
         x = self.fc1(state)
@@ -107,7 +107,6 @@ class ActorNetwork(nn.Module):
     def get_all_params_as_list(self):
         params = [p.data.cpu().numpy().flatten() for p in self.parameters()]
         return [param for sublist in params for param in sublist]  # Flatten the nested lists
-
 
 class CriticNetwork(nn.Module):
     def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9):
@@ -143,19 +142,20 @@ class CriticNetwork(nn.Module):
 
 class PPO_Agent:
     def __init__(self, chkpt, input_dims=119, n_actions=4, logger=None, wandb = None):
-        self.gamma = 0.99
+        self.gamma = 0.995
         self.policy_clip = 0.2
         self.value_clip = 1  
         self.n_epochs = 5
-        self.gae_lambda = 0.90
+        self.gae_lambda = 0.97
         self.entropy_coefficient = 0.05  
         self.max_grad_norm = 0.5  
         self.batch_size = 128
         self.lr_actor = 0.001
-        self.lr_critic = 0.001
+        self.lr_critic = 0.0001
         self.optim_step = 5000
         self.optim_gamma = 0.9
         self.logger = logger
+        self.wandb = None   # will be updated by Trainer
         
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger)
@@ -230,7 +230,7 @@ class PPO_Agent:
 
         state_arr, action_arr, old_log_probs_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
         # Normalize rewards
-        # reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
+        reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
 
         advantage = self.calculate_advantage(reward_arr, val_arr, done_arr)
         values = T.tensor(val_arr).to(self.actor.device)
@@ -267,19 +267,20 @@ class PPO_Agent:
                 value_clipped = values[batch] + T.clamp(critic_value - values[batch], -self.value_clip, self.value_clip)
                 critic_loss1 = (returns - critic_value) ** 2
                 critic_loss2 = (returns - value_clipped) ** 2
-                critic_loss = 0.5 * T.max(critic_loss1, critic_loss2).mean()
+                critic_loss = T.max(critic_loss1, critic_loss2).mean()
 
                 # Add entropy bonus for exploration
                 dist_entropy = dist.entropy().mean()
 
                 # Combine all losses
-                total_loss = actor_loss + 0.5 * critic_loss - self.entropy_coefficient * dist_entropy
+                total_loss = actor_loss + 0.05 * critic_loss - self.entropy_coefficient * dist_entropy
 
                 # logging loss
                 critic_losses.append(critic_loss.item())
                 actor_losses.append(actor_loss.item()) 
                 total_losses.append(total_loss.item())
                 entropy.append(dist_entropy.item())
+                self.wandb(val_arr_mean = val_arr.mean(), returns = returns.mean() )
 
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
