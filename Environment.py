@@ -28,8 +28,10 @@ class Environment:
     def init_rewards (self):
         self.end_of_game = -1
         self.end_of_stage = 1
-        self.hit = 1
-        self.amunition = -0.05
+        self.hit = 2
+        self.amunition = -0.2
+        self.enemy_above = -0.5
+        self.delta = 15   # width of spaceship / 2
 
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
@@ -87,15 +89,24 @@ class Environment:
         self.draw()
         hits = self.hits()
         reward +=  hits * self.hit
+        self.score += hits
         if self.is_end_of_stage():
             reward += self.end_of_stage
             self.restart(add_speed=1, add_shoot_factor=0.1, new_game=False)
-        self.score += hits
-        done = self.is_end_of_Game()
-        if done:
+            return reward, False
+        if self.is_end_of_Game():
             reward += self.end_of_game
-        return reward, done
+            return reward, True
+        if self.is_enemy_missile_above():
+            reward += self.enemy_above
+        return reward, False
     
+    def is_enemy_missile_above(self):
+        SpaceShip_x = self.spaceship.rect.centerx
+        delta = self.delta
+        is_bullet_above = any(abs(sprite.rect.centerx - SpaceShip_x) <= delta for sprite in self.enemy_bullets_Group)
+        return is_bullet_above
+
     def is_end_of_stage (self):
         return len(self.enemy_Group) == 0
    

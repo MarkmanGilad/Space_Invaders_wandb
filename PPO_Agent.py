@@ -63,12 +63,13 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        self.fc3 = nn.Linear(fc2_dims,fc1_dims )
-        self.fc4 = nn.Linear(fc1_dims, n_actions)
+        self.fc3 = nn.Linear(fc2_dims,fc2_dims )
+        self.fc4 = nn.Linear(fc2_dims,fc1_dims )
+        self.fc5 = nn.Linear(fc1_dims, n_actions)
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
         self.checkpoint_file = f'Data/Actor{chkpt}.pth'
@@ -86,6 +87,8 @@ class ActorNetwork(nn.Module):
         x = self.fc3(x)
         x = self.relu(x)
         x = self.fc4(x)
+        x = self.relu(x)
+        x = self.fc5(x)
         try:
             dist = Categorical(logits=x)
         except:
@@ -109,14 +112,15 @@ class ActorNetwork(nn.Module):
         return [param for sublist in params for param in sublist]  # Flatten the nested lists
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9):
+    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9):
         super(CriticNetwork, self).__init__()
 
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
         self.fc3 = nn.Linear(fc2_dims, fc2_dims)
-        self.fc4 = nn.Linear(fc2_dims, 1)
+        self.fc4 = nn.Linear(fc2_dims, fc1_dims)
+        self.fc5 = nn.Linear(fc1_dims, 1)
         self.relu = nn.ReLU()  
         
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
@@ -131,7 +135,9 @@ class CriticNetwork(nn.Module):
         x = self.relu(x)
         x = self.fc3(x)
         x = self.relu(x)
-        value = self.fc4(x)
+        x = self.fc4(x)
+        x = self.relu(x)
+        value = self.fc5(x)
         return value
 
     def save_checkpoint(self):
@@ -147,24 +153,25 @@ class PPO_Agent:
         self.value_clip = 1  
         self.n_epochs = 5
         self.gae_lambda = 0.97
-        self.entropy_coefficient = 0.05  
+        self.entropy_coefficient = 0.1  
         self.max_grad_norm = 0.5  
         self.batch_size = 64
         self.lr_actor = 0.001
-        self.lr_critic = 0.0001
-        self.optim_step = 5000
+        self.lr_critic = 0.001
+        self.optim_step = 2500
         self.optim_gamma = 0.9
         self.critic_actor_ratio = 0.1
         self.logger = logger
         self.wandb = None   # will be updated by Trainer
-        self.frame_skip = 5
-
+        self.frame_skip = 0 # number of frame to skip
+        self.skip = 0   # counter for skipping memmory
+        
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger)
         self.critic = CriticNetwork(input_dims, self.lr_critic, chkpt=chkpt, optim_step=self.optim_step, 
                                     optim_gamma=self.optim_gamma)
         self.memory = PPOMemory(self.batch_size)
-        self.skip = 0   # counter for skipping memmory
+        
 
     def remember(self, state, action, probs, vals, reward, done):
         if (reward == 0 or reward == -0.05) and self.skip < self.frame_skip:
@@ -271,11 +278,12 @@ class PPO_Agent:
 
                 # Calculate returns with value clipping
                 returns = advantage[batch] + values[batch]
-                value_clipped = values[batch] + T.clamp(critic_value - values[batch], -self.value_clip, self.value_clip)
+                # value_clipped = values[batch] + T.clamp(critic_value - values[batch], -self.value_clip, self.value_clip)
                 critic_loss1 = (returns - critic_value) ** 2
-                critic_loss2 = (returns - value_clipped) ** 2
-                critic_loss = T.max(critic_loss1, critic_loss2).mean()
-
+                # critic_loss2 = (returns - value_clipped) ** 2
+                # critic_loss = T.max(critic_loss1, critic_loss2).mean()
+                critic_loss = critic_loss1.mean()
+                
                 # Add entropy bonus for exploration
                 dist_entropy = dist.entropy().mean()
 

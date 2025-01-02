@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''skip episodes'''
+        self.remark = '''Leaky relu'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -89,6 +89,8 @@ class Trainer:
                  "reward_end_of_game": self.env.end_of_game,
                  "reward_end_of_stage": self.env.end_of_stage,
                  "reward_amunition": self.env.amunition,
+                 'reward_enemy_above': self.env.enemy_above,
+                 'delta_width': self.env.delta,
                  'remark': remark,  
                  'critic_actor_ratio': self.agent.critic_actor_ratio,
                  'frame_skip': self.agent.frame_skip,              
@@ -255,5 +257,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=52)
+    trainer = Trainer(chkpt=62)
     trainer.train()
