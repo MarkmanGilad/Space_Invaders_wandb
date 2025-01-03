@@ -1,43 +1,35 @@
+import numpy as np
+import torch as T 
 
-
-import torch
-
-state = torch.tensor([0.0288, 0.0333, 0.3000, 0.1787, 0.0333, 0.3000, 0.3288, 0.0333, 0.3000,
-        0.4787, 0.0333, 0.3000, 0.6288, 0.0333, 0.3000, 0.7788, 0.0333, 0.3000,
-        0.0288, 0.1667, 0.3000, 0.1787, 0.1667, 0.3000, 0.3288, 0.1667, 0.3000,
-        0.4787, 0.1667, 0.3000, 0.6288, 0.1667, 0.3000, 0.7788, 0.1667, 0.3000,
-        0.0288, 0.3000, 0.3000, 0.1787, 0.3000, 0.3000, 0.3288, 0.3000, 0.3000,
-        0.4787, 0.3000, 0.3000, 0.6288, 0.3000, 0.3000, 0.7788, 0.3000, 0.3000,
-        4.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000,
-        0.0000, 0.0000, 0.0000, 0.5000, 0.4625, 0.7833, 0.5000, 0.4625, 0.7033,
-        0.0000, 0.0000, 0.0000, 0.0000, 1.5000, 0.7900, 1.0000])
+reward_arr = np.array([0.])
+val_arr = np.array([20.59])
+done_arr = np.array([1])
 
 
 
+def calculate_advantage (reward_arr, val_arr, done_arr):
+    gamma = 0.9
+    gae_lambda = 0.95
+    advantage = np.zeros(len(reward_arr), dtype=np.float32)
 
+    future_advantage = 0
+    for t in reversed(range(len(reward_arr))):
+        if t == len(reward_arr) - 1:  
+            td_error = reward_arr[t] - val_arr[t]  # No next value for last step
+        else:
+            td_error = reward_arr[t] + gamma * val_arr[t+1] * (1 - int(done_arr[t])) - val_arr[t]
+            
+        future_advantage = td_error + gamma * gae_lambda * future_advantage * (1 - int(done_arr[t]))
+        advantage[t] = future_advantage
+    
+    
+        advantage = T.tensor(advantage).to('cpu')
+        # Normalization (optional)
+        m = advantage.mean()
+        s = advantage.std()
+        
+        advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+    
+    return advantage_norm
 
-
-# enemy-ship
-state[0:54].reshape(3, 6, -1) 
-
-#Enemy Y speed
-state[54]
-
-#enemy bullet group
-state[55:75].reshape(-1,2)
-
-state[75] #Enemy bullet speed
-
-
-print(state[76]) #spaceship X
-print(state[77]) #spaceship Y
-print(state[78]) #spaceship Speed
-
-print(state[79:85].reshape(-1,2))   # bullets 
-
-print(state[85])    # spave ship bullet speed
-
-print(state[86])   #ammunition
-
-print(state[87])   #level
+print(calculate_advantage(reward_arr, val_arr, done_arr))

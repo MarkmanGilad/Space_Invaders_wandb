@@ -51,14 +51,14 @@ class Trainer:
         Args:
             n_step (int): Number of steps for n-step returns.
         """
-        self.n_steps = 2048
-        self.epochs = 30000
+        self.n_steps = 128
+        self.epochs = 50000
         self.start_epoch = 1
         self.step = 0
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''Leaky relu'''
+        self.remark = '''with value clip and value normalized'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -83,6 +83,7 @@ class Trainer:
                  "batch_size":self.agent.batch_size,
                  "lr_actor":self.agent.lr_actor, 
                  "lr_critic":self.agent.lr_critic, 
+                 "weight_decay": self.agent.weight_decay,
                  "optim_step":self.agent.optim_step, 
                  "optim_gamma":self.agent.optim_gamma,
                  "reward_hit":self.env.hit,
@@ -257,5 +258,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=62)
+    trainer = Trainer(chkpt=80)
     trainer.train()
