@@ -78,7 +78,6 @@ class Trainer:
                  "value_clip":self.agent.value_clip, 
                  "n_epochs":self.agent.n_epochs, 
                  "gae_lambda":self.agent.gae_lambda, 
-                 "entropy_coefficient":self.agent.entropy_coefficient, 
                  "max_grad_norm":self.agent.max_grad_norm, 
                  "batch_size":self.agent.batch_size,
                  "lr_actor":self.agent.lr_actor, 
@@ -94,7 +93,11 @@ class Trainer:
                  'delta_width': self.env.delta,
                  'remark': remark,  
                  'critic_actor_ratio': self.agent.critic_actor_ratio,
-                 'frame_skip': self.agent.frame_skip,              
+                 'frame_skip': self.agent.frame_skip,  
+                 'entropy_decay': self.agent.entropy_decay,
+                 'entropy_decay_steps': self.agent.entropy_decay_steps, 
+                 "entropy_coefficient":self.agent.entropy_coefficient, 
+                 'entropy_coe_min':self.agent.entropy_coe_min,
             }
         return WandB(project_name, self.chkpt, config, self.resume_wandb)
 
@@ -181,7 +184,8 @@ class Trainer:
             f'actor_loss: {self.agent.actor_loss:.5f} critic_loss: {self.agent.critic_loss:.5f}',
             f'total_loss: {self.agent.total_loss:.5f}',
             f'actor_lr: {self.agent.actor.scheduler.get_last_lr()[0]:.5f} critic_lr: {self.agent.critic.scheduler.get_last_lr()[0]:.5f}',
-            f'score: {self.env.score} level: {self.env.level}'
+            f'score: {self.env.score} level: {self.env.level}',
+            f'entropy_coefficient: {self.agent.entropy_coefficient}'
             
         )
         self.logger.log('actor_loss', self.agent.actor_loss)
@@ -258,5 +262,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=80)
+    trainer = Trainer(chkpt=96)
     trainer.train()

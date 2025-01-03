@@ -26,11 +26,11 @@ class Environment:
         self.init_rewards()
 
     def init_rewards (self):
-        self.end_of_game = -1
-        self.end_of_stage = 1
-        self.hit = 2
-        self.amunition = -0.05
-        self.enemy_above = 0.0
+        self.end_of_game = -5
+        self.end_of_stage = 15
+        self.hit = 5
+        self.amunition = -0.01
+        self.enemy_above = -2
         self.delta = 10   # width of spaceship / 2
 
 
@@ -86,7 +86,7 @@ class Environment:
             if self.spaceship.ammunition > 0:
                 reward += self.amunition              # don't waste ammunition
         self.update()
-        self.draw()
+        self.draw()        
         hits = self.hits()
         reward +=  hits * self.hit
         self.score += hits
@@ -108,7 +108,8 @@ class Environment:
         return is_bullet_above
 
     def is_end_of_stage (self):
-        return len(self.enemy_Group) == 0
+        enemies = len(self.enemy_Group)
+        return enemies == 0
    
     def is_end_of_Game (self):
         if self.spaceship.ammunition == 0 and len(self.enemy_Group) > 0 and len(self.bullets_Group)==0:      

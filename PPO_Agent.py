@@ -66,10 +66,10 @@ class ActorNetwork(nn.Module):
     def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
-        self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        self.fc3 = nn.Linear(fc2_dims,fc2_dims )
-        self.fc4 = nn.Linear(fc2_dims,fc2_dims )
-        self.fc5 = nn.Linear(fc2_dims, n_actions)
+        self.fc2 = nn.Linear(fc1_dims, fc1_dims)
+        # self.fc3 = nn.Linear(fc2_dims,fc1_dims )
+        # self.fc4 = nn.Linear(fc2_dims,fc2_dims )
+        self.fc3 = nn.Linear(fc1_dims, n_actions)
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
         self.checkpoint_file = f'Data/Actor{chkpt}.pth'
@@ -85,20 +85,11 @@ class ActorNetwork(nn.Module):
         x = self.fc2(x)
         x = self.relu(x)
         x = self.fc3(x)
-        x = self.relu(x)
-        x = self.fc4(x)
-        x = self.relu(x)
-        x = self.fc5(x)
-        try:
-            dist = Categorical(logits=x)
-        except:
-            self.logger.log('state', state)
-            self.logger.log('logits', x)
-            self.logger.log('actor params', self.get_all_params_as_list())
-            self.logger.save()
-            raise 
-        
-        
+        # x = self.relu(x)
+        # x = self.fc4(x)
+        # x = self.relu(x)
+        # x = self.fc5(x)
+        dist = Categorical(logits=x)
         return dist
 
     def save_checkpoint(self):
@@ -118,9 +109,9 @@ class CriticNetwork(nn.Module):
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        self.fc3 = nn.Linear(fc2_dims, fc2_dims)
-        self.fc4 = nn.Linear(fc2_dims, fc2_dims)
-        self.fc5 = nn.Linear(fc2_dims, 1)
+        self.fc3 = nn.Linear(fc2_dims, fc1_dims)
+        # self.fc4 = nn.Linear(fc2_dims, fc2_dims)
+        self.fc4 = nn.Linear(fc1_dims, 1)
         self.relu = nn.ReLU()  
         
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
@@ -136,8 +127,8 @@ class CriticNetwork(nn.Module):
         x = self.fc3(x)
         x = self.relu(x)
         x = self.fc4(x)
-        x = self.relu(x)
-        x = self.fc5(x)
+        # x = self.relu(x)
+        # x = self.fc5(x)
         return x
 
     def save_checkpoint(self):
@@ -150,23 +141,27 @@ class PPO_Agent:
     def __init__(self, chkpt, input_dims=119, n_actions=4, logger=None, wandb = None):
         self.gamma = 0.995
         self.policy_clip = 0.2
-        self.value_clip = 1  
-        self.n_epochs = 3
-        self.gae_lambda = 0.99
-        self.entropy_coefficient = 0.1  
-        self.max_grad_norm = 0.25  
-        self.batch_size = 32
-        self.lr_actor = 1e-4
-        self.lr_critic = 1e-4
-        self.weight_decay = 1e-4
-        self.optim_step = 5000
-        self.optim_gamma = 0.9
-        self.critic_actor_ratio = 0.1
+        self.value_clip = 0.2  
+        self.n_epochs = 4
+        self.gae_lambda = 0.995
+        self.max_grad_norm = 0.5  
+        self.batch_size = 64
+        self.lr_actor = 3e-4
+        self.lr_critic = 3e-4
+        self.weight_decay = 0.1
+        self.optim_step = 2000
+        self.optim_gamma = 0.98
+        self.critic_actor_ratio = 0.5
         self.logger = logger
         self.wandb = None   # will be updated by Trainer
         self.frame_skip = 0 # number of frame to skip
         self.skip = 0   # counter for skipping memmory
-        
+        self.learn_step = 0 # counter for number of learning
+        self.entropy_coefficient = 0.2
+        self.entropy_coe_min = 0.01
+        self.entropy_decay = 0.95         # Slower decay
+        self.entropy_decay_steps = 1000    # Less frequent decay
+
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger, weight_decay=self.weight_decay)
         self.critic = CriticNetwork(input_dims, self.lr_critic, chkpt=chkpt, optim_step=self.optim_step, 
@@ -237,6 +232,11 @@ class PPO_Agent:
         total_losses = []   # for logging
         entropy = []        # for logging
 
+        self.learn_step += 1
+        if self.learn_step % self.entropy_decay_steps == 0:
+            self.entropy_coefficient = max(self.entropy_coefficient * self.entropy_decay, 
+                                           self.entropy_coe_min)
+
         state_arr, action_arr, old_log_probs_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
         
         if len(state_arr) <= 10:          # skipping learning if too few samples
@@ -246,7 +246,7 @@ class PPO_Agent:
         # Normalize rewards
         reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
         # Normalize values
-        val_arr = (val_arr - np.mean(val_arr)) / (np.std(val_arr) + 1e-8)
+        # val_arr = (val_arr - np.mean(val_arr)) / (np.std(val_arr) + 1e-8)
 
         advantage = self.calculate_advantage(reward_arr, val_arr, done_arr)
         values = T.tensor(val_arr).to(self.actor.device)
