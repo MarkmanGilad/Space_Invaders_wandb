@@ -31,8 +31,8 @@ class Environment:
         self.end_of_game = -10
         self.end_of_stage = 20
         self.hit = 2
-        self.amunition = -0.0
-        self.enemy_above = -0.5
+        self.amunition = -0.05
+        self.enemy_above = -0.1
         self.delta = 10   # width of spaceship / 2
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
@@ -173,7 +173,7 @@ class Environment:
             state_list.append(normS(sprite.speed_x))
         
         for i in range(enemy_ships-len(self.enemy_Group)):
-            state_list.append([0,0,0,0,0,0])
+            state_list.extend([0,0,0,0,0,0])
         state_list.append(normS(Enemy.speed_y))                     
         
         for sprite in self.enemy_bullets_Group:                     
@@ -184,7 +184,7 @@ class Environment:
             state_list.append(normX(sprite.rect.centerx-ship_x+bullet_h))
         
         for i in range(enemy_bullets-len(self.enemy_bullets_Group)):
-            state_list.append([0,0,0,0,0])
+            state_list.extend([0,0,0,0,0])
         state_list.append(normS(ENEMY_BULLET_SPEED))               
         state_list.append(normX(-ship_w))                               #      width of space ship to the right
         state_list.append(normX(ship_w))                               #      width of space ship to the right
@@ -200,7 +200,7 @@ class Environment:
             state_list.append(normY(sprite.rect.centery-ship_y+bullet_h))
 
         for i in range(SpaceShip_Bullet_pos_shape-len(self.bullets_Group)):
-            state_list.append([0,0,0,0,0])
+            state_list.extend([0,0,0,0,0])
         state_list.append(normS(SPACESHIP_BULLET_SPEED))            
         state_list.append(self.spaceship.ammunition/100)            
         state_list.append(self.level)                               
