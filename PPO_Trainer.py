@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''End of stage is End of game'''
+        self.remark = '''new state'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -119,6 +119,8 @@ class Trainer:
                 self.graphics.events()
                 action, log_prob, val = agent.choose_action(state)
                 reward, done = self.env.move(action=action)
+                if done:
+                    state = state = self.env.state()
                 agent.remember(state, action, log_prob, val, reward, done)
                 self.step += 1
                 # if self.step % 10 == 0:
@@ -261,5 +263,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=131)
+    trainer = Trainer(chkpt=163)
     trainer.train()
