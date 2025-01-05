@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''with value clip and value normalized'''
+        self.remark = '''End of stage is End of game'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -126,7 +126,6 @@ class Trainer:
 
                 if done or self.step % self.n_steps == 0:
                     agent.learn(epoch)
-                    # self.log_and_plot(epoch)   
 
                 state = self.env.state()
                 self.graphics.header_writing(env=self.env, epoch=epoch)
@@ -262,5 +261,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=96)
+    trainer = Trainer(chkpt=114)
     trainer.train()

@@ -24,15 +24,16 @@ class Environment:
         self.ground = Ground()
         self.ground_Group = pygame.sprite.GroupSingle(self.ground)
         self.init_rewards()
+        self.add_shoot_factor = 0.1
+        self.next_stage = False
 
     def init_rewards (self):
-        self.end_of_game = -5
-        self.end_of_stage = 15
-        self.hit = 5
-        self.amunition = -0.01
-        self.enemy_above = -2
+        self.end_of_game = -20
+        self.end_of_stage = 20
+        self.hit = 3
+        self.amunition = -0.00
+        self.enemy_above = -0
         self.delta = 10   # width of spaceship / 2
-
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
@@ -56,21 +57,22 @@ class Environment:
         self.bullets_Group.draw(surface)
         self.enemy_bullets_Group.draw(surface)
 
-    def restart (self, add_speed = 0, add_shoot_factor = 0, new_game = True):
-                
-        if new_game:
-            # width =  random.randint(50, WIDTH-50)
-            width = WIDTH // 2 - 30
-            self.spaceship.rect.midbottom = ( width, HEIGHT - 100)
+    def restart (self):
+        width = WIDTH // 2 - 30
+
+        if self.next_stage:
+            self.level += 1
+            Enemy.shoots_factor += self.add_shoot_factor
+            self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
+            self.spaceship.rect.midbottom = (width, HEIGHT - 100)
+            self.next_stage = False
+        else:
+            self.spaceship.rect.midbottom = (width, HEIGHT - 100)
             Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
             self.score = 0
             self.level = 1
             self.enemy_Group = self.make_enemy_group()
-        else:
-            self.level += 1
-            Enemy.shoots_factor += add_shoot_factor
-            self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
-        
+                    
         self.spaceship.ammunition = MAX_AMMUNITION
         self.bullets_Group.empty()
         self.enemy_bullets_Group.empty()    
@@ -92,8 +94,9 @@ class Environment:
         self.score += hits
         if self.is_end_of_stage():
             reward += self.end_of_stage
-            self.restart(add_speed=1, add_shoot_factor=0.1, new_game=False)
-            return reward, False
+            # self.restart(add_shoot_factor=0.1, new_game=False)
+            self.next_stage = True
+            return reward, True
         if self.is_end_of_Game():
             reward += self.end_of_game
             return reward, True
