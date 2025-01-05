@@ -138,7 +138,7 @@ class CriticNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class PPO_Agent:
-    def __init__(self, chkpt, input_dims=119, n_actions=4, logger=None, wandb = None):
+    def __init__(self, chkpt, input_dims=183, n_actions=4, logger=None, wandb = None):
         self.gamma = 0.99
         self.policy_clip = 0.2
         self.value_clip = 0.2  
@@ -157,10 +157,10 @@ class PPO_Agent:
         self.frame_skip = 0 # number of frame to skip
         self.skip = 0   # counter for skipping memmory
         self.learn_step = 0 # counter for number of learning
-        self.entropy_coefficient = 0.1
+        self.entropy_coefficient = 0.2
         self.entropy_coe_min = 0.01
         self.entropy_decay = 0.90         # Slower decay
-        self.entropy_decay_steps = 5000    # Less frequent decay
+        self.entropy_decay_steps = 2000    # Less frequent decay
 
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger, weight_decay=self.weight_decay)
