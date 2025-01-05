@@ -138,6 +138,7 @@ class Environment:
         normX = self.normX
         normY = self.normY
         normS = self.normSpeed
+        number_of_enemies = 1                                   # 1
         enemy_ships = ENEMY_COLS * ENEMY_ROWS                   # 3 * 6 * 6 = 108  exists, x-width, x+width,  y-height, y+height, speed 
         enemy_speed_y = 1                                       # 1
         enemy_bullets = MAX_ENEMY_BULLETS                       # 10 * 5 = 50     exists, x-width, x+width,  y-height, y+height
@@ -163,7 +164,7 @@ class Environment:
         bullet_h = 5 / 2
 
         state_list = []
-        
+        state_list.append(len(self.enemy_Group)/enemy_ships)
         for sprite in self.enemy_Group:
             state_list.append(1)
             state_list.append(normX(sprite.rect.centerx-ship_x-enemy_w))
