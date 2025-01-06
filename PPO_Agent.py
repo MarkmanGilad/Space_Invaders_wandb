@@ -197,9 +197,11 @@ class PPO_Agent:
 
         return action, log_prob, value
 
-    def calculate_advantage (self, reward_arr, val_arr, done_arr):
-        advantage = np.zeros(len(reward_arr), dtype=np.float32)
-
+    def calculate_advantage_and_returns (self, reward_arr, val_arr, done_arr):
+        advantage = np.zeros_like(reward_arr, dtype=np.float32)
+        returns = np.zeros_like(reward_arr, dtype=np.float32)
+        
+        future_return = 0
         future_advantage = 0
         for t in reversed(range(len(reward_arr))):
             if t == len(reward_arr) - 1:  
@@ -207,15 +209,23 @@ class PPO_Agent:
             else:
                 td_error = reward_arr[t] + self.gamma * val_arr[t+1] * (1 - int(done_arr[t])) - val_arr[t]
                 
+            # GAE advantage calculation
             future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
             advantage[t] = future_advantage
         
+            # Reward-to-go calculation (returns)
+            future_return = reward_arr[t] + self.gamma * future_return * (1 - int(done_arr[t]))
+            returns[t] = future_return
+
+        # Convert to tensors and move to device
         advantage = T.tensor(advantage).to(self.actor.device)
+        returns = T.tensor(returns).to(self.actor.device)
+
         # Normalization (optional)
-        # advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-        advantage_norm = advantage      # no Normaliztion
+        advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
         
-        #log
+        
+        # Log for debugging and monitoring
         self.advantage_mean = advantage.mean().item()
         self.advantage_std = advantage.std().item()
         self.advantage_norm = advantage_norm.mean()
@@ -223,7 +233,7 @@ class PPO_Agent:
         self.logger.log('advantage_std', self.advantage_std)
         self.logger.log('advantage_norm', self.advantage_norm)
         
-        return advantage_norm
+        return advantage_norm, returns
         
     def learn(self, epoch):
         actor_losses = []   # for logging
@@ -231,6 +241,7 @@ class PPO_Agent:
         total_losses = []   # for logging
         entropy = []        # for logging
 
+        # decay entropy coefficient
         self.learn_step += 1
         if self.learn_step % self.entropy_decay_steps == 0:
             self.entropy_coefficient = max(self.entropy_coefficient * self.entropy_decay, 
@@ -238,17 +249,14 @@ class PPO_Agent:
 
         state_arr, action_arr, old_log_probs_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
         
-        if len(state_arr) < 2:          # skipping learning if too few samples
+        # skipping learning if too few samples
+        if len(state_arr) < 2:          
             print(f"Skipping learning: only {len(state_arr)} samples, need at least 2")
             self.memory.clear_memory()
             return
-        # Normalize rewards
-        reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
-        # Normalize values
-        # val_arr = (val_arr - np.mean(val_arr)) / (np.std(val_arr) + 1e-8)
-
-        advantage = self.calculate_advantage(reward_arr, val_arr, done_arr)
-        values = T.tensor(val_arr).to(self.actor.device)
+        
+        # Compute advantage and returns
+        advantage, returns = self.calculate_advantage_and_returns(reward_arr, val_arr, done_arr)
 
         for i in range(self.n_epochs):
             batches = self.memory.generate_batches()
@@ -265,18 +273,18 @@ class PPO_Agent:
                 
                 # Ratio of new and old probabilities (exp(log-probs))
                 prob_ratio = T.exp(new_log_probs - old_log_probs)
-
+                
+                # Calculate actor loss
                 weighted_probs = advantage[batch] * prob_ratio
                 weighted_clipped_probs = T.clamp(prob_ratio, 1 - self.policy_clip, 1 + self.policy_clip) * advantage[batch]
                 actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
 
-                # Calculate returns with value clipping
-                returns = advantage[batch] + values[batch]
-                value_clipped = values[batch] + T.clamp(critic_value - values[batch], -self.value_clip, self.value_clip)
-                critic_loss1 = (returns - critic_value) ** 2
-                critic_loss2 = (returns - value_clipped) ** 2
+                # Calculate critic loss
+                value_clipped = returns[batch] + T.clamp(critic_value - returns[batch], -self.value_clip, self.value_clip)
+                critic_loss1 = (returns[batch] - critic_value) ** 2
+                critic_loss2 = (returns[batch] - value_clipped) ** 2
                 critic_loss = T.max(critic_loss1, critic_loss2).mean()
-                # critic_loss = critic_loss1.mean()
+                
 
                 # Add entropy bonus for exploration
                 dist_entropy = dist.entropy().mean()
@@ -290,7 +298,8 @@ class PPO_Agent:
                 total_losses.append(total_loss.item())
                 entropy.append(dist_entropy.item())
                 self.wandb(val_arr_mean = val_arr.mean(), returns = returns.mean() )
-
+                
+                # Perform optimization step
                 self.actor.optimizer.zero_grad()
                 self.critic.optimizer.zero_grad()
                 total_loss.backward()
