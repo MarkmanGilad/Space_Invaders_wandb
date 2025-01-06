@@ -63,11 +63,11 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=512, fc2_dims=2048, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        self.fc3 = nn.Linear(fc2_dims,fc2_dims )
+        # self.fc3 = nn.Linear(fc2_dims,fc2_dims )
         self.fc4 = nn.Linear(fc2_dims,fc1_dims )
         self.fc5 = nn.Linear(fc1_dims, n_actions)
         self.relu = nn.ReLU()
@@ -84,8 +84,8 @@ class ActorNetwork(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
-        x = self.fc3(x)
-        x = self.relu(x)
+        # x = self.fc3(x)
+        # x = self.relu(x)
         x = self.fc4(x)
         x = self.relu(x)
         x = self.fc5(x)
@@ -103,13 +103,13 @@ class ActorNetwork(nn.Module):
         return [param for sublist in params for param in sublist]  # Flatten the nested lists
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, lr, fc1_dims=512, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
+    def __init__(self, input_dims, lr, fc1_dims=128, fc2_dims=256, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
         super(CriticNetwork, self).__init__()
 
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        self.fc3 = nn.Linear(fc2_dims, fc2_dims)
+        # self.fc3 = nn.Linear(fc2_dims, fc2_dims)
         self.fc4 = nn.Linear(fc2_dims, fc1_dims)
         self.fc5 = nn.Linear(fc1_dims, 1)
         self.relu = nn.ReLU()  
@@ -124,8 +124,8 @@ class CriticNetwork(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
-        x = self.fc3(x)
-        x = self.relu(x)
+        # x = self.fc3(x)
+        # x = self.relu(x)
         x = self.fc4(x)
         x = self.relu(x)
         x = self.fc5(x)
@@ -257,19 +257,12 @@ class PPO_Agent:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_log_probs = T.tensor(old_log_probs_arr[batch]).to(self.actor.device)
                 actions = T.tensor(action_arr[batch]).to(self.actor.device)
-                try:
-                    dist = self.actor(states)
-                except:
-                    self.logger.log('advantage', advantage)
-                    self.logger.log('reward_arr', reward_arr)
-                    self.logger.log('val_arr', val_arr)
-                    self.logger.save()
-                    raise 
-                critic_value = self.critic(states)
-                critic_value = T.squeeze(critic_value)
-
+                dist = self.actor(states)
                 new_log_probs = dist.log_prob(actions)
 
+                critic_value = self.critic(states)
+                critic_value = T.squeeze(critic_value)
+                
                 # Ratio of new and old probabilities (exp(log-probs))
                 prob_ratio = T.exp(new_log_probs - old_log_probs)
 
@@ -279,11 +272,11 @@ class PPO_Agent:
 
                 # Calculate returns with value clipping
                 returns = advantage[batch] + values[batch]
-                # value_clipped = values[batch] + T.clamp(critic_value - values[batch], -self.value_clip, self.value_clip)
+                value_clipped = values[batch] + T.clamp(critic_value - values[batch], -self.value_clip, self.value_clip)
                 critic_loss1 = (returns - critic_value) ** 2
-                # critic_loss2 = (returns - value_clipped) ** 2
-                # critic_loss = T.max(critic_loss1, critic_loss2).mean()
-                critic_loss = critic_loss1.mean()
+                critic_loss2 = (returns - value_clipped) ** 2
+                critic_loss = T.max(critic_loss1, critic_loss2).mean()
+                # critic_loss = critic_loss1.mean()
 
                 # Add entropy bonus for exploration
                 dist_entropy = dist.entropy().mean()

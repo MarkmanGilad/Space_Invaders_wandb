@@ -37,10 +37,12 @@ class Environment:
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
-        row , col = 3 , 6
-        for r in range (row):
-            for c in range (col):
-                enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
+        # row , col = 3 , 6
+        # for r in range (row):
+        #     for c in range (col):
+        #         enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
+        c, r = 3 , 1
+        enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
         return enemy_Group
     
     def update (self):

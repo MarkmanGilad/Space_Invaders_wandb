@@ -263,5 +263,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=180)
+    trainer = Trainer(chkpt=183)
     trainer.train()
