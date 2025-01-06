@@ -63,11 +63,11 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=512, fc2_dims=2048, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        # self.fc3 = nn.Linear(fc2_dims,fc2_dims )
+        self.fc3 = nn.Linear(fc2_dims,fc2_dims )
         self.fc4 = nn.Linear(fc2_dims,fc1_dims )
         self.fc5 = nn.Linear(fc1_dims, n_actions)
         self.relu = nn.ReLU()
@@ -84,8 +84,8 @@ class ActorNetwork(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
-        # x = self.fc3(x)
-        # x = self.relu(x)
+        x = self.fc3(x)
+        x = self.relu(x)
         x = self.fc4(x)
         x = self.relu(x)
         x = self.fc5(x)
@@ -103,13 +103,13 @@ class ActorNetwork(nn.Module):
         return [param for sublist in params for param in sublist]  # Flatten the nested lists
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
+    def __init__(self, input_dims, lr, fc1_dims=512, fc2_dims=1024, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
         super(CriticNetwork, self).__init__()
 
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
-        # self.fc3 = nn.Linear(fc2_dims, fc2_dims)
+        self.fc3 = nn.Linear(fc2_dims, fc2_dims)
         self.fc4 = nn.Linear(fc2_dims, fc1_dims)
         self.fc5 = nn.Linear(fc1_dims, 1)
         self.relu = nn.ReLU()  
@@ -124,8 +124,8 @@ class CriticNetwork(nn.Module):
         x = self.relu(x)
         x = self.fc2(x)
         x = self.relu(x)
-        # x = self.fc3(x)
-        # x = self.relu(x)
+        x = self.fc3(x)
+        x = self.relu(x)
         x = self.fc4(x)
         x = self.relu(x)
         x = self.fc5(x)

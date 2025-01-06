@@ -29,11 +29,11 @@ class Environment:
 
     def init_rewards (self):
         self.end_of_game = -10
-        self.end_of_stage = 20
+        self.end_of_stage = 10
         self.hit = 2
-        self.amunition = -0.2
-        self.enemy_above = -0.0
-        self.delta = 10   # width of spaceship / 2
+        self.amunition = -0.05
+        self.enemy_above = -0.2
+        self.delta = 7.5  # width of spaceship / 2
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
