@@ -255,6 +255,9 @@ class PPO_Agent:
             self.memory.clear_memory()
             return
         
+        # Normalize rewards
+        reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
+
         # Compute advantage and returns
         advantage, returns = self.calculate_advantage_and_returns(reward_arr, val_arr, done_arr)
 
