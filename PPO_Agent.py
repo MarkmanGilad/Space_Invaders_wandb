@@ -160,7 +160,7 @@ class PPO_Agent:
         self.entropy_coefficient = 0.2
         self.entropy_coe_min = 0.01
         self.entropy_decay = 0.90         # Slower decay
-        self.entropy_decay_steps = 2000    # Less frequent decay
+        self.entropy_decay_steps = 500    # Less frequent decay
 
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger, weight_decay=self.weight_decay)
@@ -201,7 +201,7 @@ class PPO_Agent:
         advantage = np.zeros_like(reward_arr, dtype=np.float32)
         returns = np.zeros_like(reward_arr, dtype=np.float32)
         
-        future_return = 0
+        future_return = val_arr[-1] if not done_arr[-1] else 0  # Initialize with V(s_{t+n}) for truncated trajectory
         future_advantage = 0
         for t in reversed(range(len(reward_arr))):
             if t == len(reward_arr) - 1:  

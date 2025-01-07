@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''new state'''
+        self.remark = '''new return calc'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -263,5 +263,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=183)
+    trainer = Trainer(chkpt=206)
     trainer.train()

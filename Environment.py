@@ -31,8 +31,8 @@ class Environment:
         self.end_of_game = -10
         self.end_of_stage = 10
         self.hit = 2
-        self.amunition = -0.05
-        self.enemy_above = -0.2
+        self.amunition = -0.5
+        self.enemy_above = -0.1
         self.delta = 7.5  # width of spaceship / 2
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
@@ -41,8 +41,10 @@ class Environment:
         # for r in range (row):
         #     for c in range (col):
         #         enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
-        c, r = 3 , 1
-        enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
+        all_enemies = [(x, y) for x in range(4) for y in range(7)]
+        sample_enemies = random.sample(all_enemies, 2)
+        for r, c in sample_enemies:
+            enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
         return enemy_Group
     
     def update (self):
