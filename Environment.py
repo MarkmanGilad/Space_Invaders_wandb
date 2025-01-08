@@ -31,20 +31,20 @@ class Environment:
         self.end_of_game = -1
         self.end_of_stage = 2
         self.hit = 1
-        self.amunition = -0.05
-        self.enemy_above = -0.01
+        self.amunition = -0.00
+        self.enemy_above = -0.00
         self.delta = 7.5  # width of spaceship / 2
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
-        # row , col = 3 , 6
-        # for r in range (row):
-        #     for c in range (col):
-        #         enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
-        all_enemies = [(x, y) for x in range(4) for y in range(7)]
-        sample_enemies = random.sample(all_enemies, 1)
-        for r, c in sample_enemies:
-            enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
+        row , col = 3 , 6
+        for r in range (row):
+            for c in range (col):
+                enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
+        # all_enemies = [(x, y) for x in range(4) for y in range(7)]
+        # sample_enemies = random.sample(all_enemies, 1)
+        # for r, c in sample_enemies:
+        #     enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
         return enemy_Group
     
     def update (self):
@@ -126,10 +126,12 @@ class Environment:
         return len(enemy_landed) > 0 or len(spaceship_hit) > 0
         
     def hits (self):
-        collisions = pygame.sprite.groupcollide(self.enemy_Group, self.bullets_Group, True, True, pygame.sprite.collide_mask)
-        # for enemy, bullets in collisions.items():
-        #     self.enemy_Group.remove(enemy)          # Remove the enemy from self.enemy_Group
-        #     self.bullets_Group.remove(bullets[0])   # Remove the first (and only) bullet from self.bullets_Group 
+        collisions = pygame.sprite.groupcollide(self.enemy_Group, self.bullets_Group, False, True, pygame.sprite.collide_mask)
+        for enemy, bullets in collisions.items():
+            enemy.explode()
+            # self.enemy_Group.remove(enemy)          # Remove the enemy from self.enemy_Group
+            # self.bullets_Group.remove(bullets[0])   # Remove the first (and only) bullet from self.bullets_Group 
+
         return len(collisions)
     
     def normX(self, x):
@@ -173,7 +175,7 @@ class Environment:
         state_list = []
         state_list.append(len(self.enemy_Group)/enemy_ships)
         for sprite in self.enemy_Group:
-            state_list.append(1)
+            state_list.append(sprite.live)
             state_list.append(normX(sprite.rect.centerx-ship_x-enemy_w))
             state_list.append(normX(sprite.rect.centerx-ship_x+enemy_w))
             state_list.append(normY(sprite.rect.centery-ship_y-enemy_h))

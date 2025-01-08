@@ -139,7 +139,7 @@ class CriticNetwork(nn.Module):
 
 class PPO_Agent:
     def __init__(self, chkpt, input_dims=184, n_actions=4, logger=None, wandb = None):
-        self.gamma = 0.99
+        self.gamma = 0.95
         self.policy_clip = 0.2
         self.value_clip = 0.2  
         self.n_epochs = 4
@@ -210,20 +210,26 @@ class PPO_Agent:
                 td_error = reward_arr[t] + self.gamma * val_arr[t+1] * (1 - int(done_arr[t])) - val_arr[t]
                 
             # GAE advantage calculation
-            future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
-            advantage[t] = future_advantage
+            # future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
+            # advantage[t] = future_advantage
         
+            
             # Reward-to-go calculation (returns)
             future_return = reward_arr[t] + self.gamma * future_return * (1 - int(done_arr[t]))
             returns[t] = future_return
+
+        # Calculate advantage as returns - values
+        values = np.array(val_arr, dtype=np.float32)
+        advantage = returns - values
+
 
         # Convert to tensors and move to device
         advantage = T.tensor(advantage).to(self.actor.device)
         returns = T.tensor(returns).to(self.actor.device)
 
         # Normalization (optional)
-        advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
-        
+        # advantage_norm = (advantage - advantage.mean()) / (advantage.std() + 1e-8)
+        advantage_norm = advantage
         
         # Log for debugging and monitoring
         self.advantage_mean = advantage.mean().item()

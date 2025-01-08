@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''new return calc'''
+        self.remark = '''advantage as return - values; no advantage norm'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -119,8 +119,8 @@ class Trainer:
                 self.graphics.events()
                 action, log_prob, val = agent.choose_action(state)
                 reward, done = self.env.move(action=action)
-                if done:
-                    state = self.env.state()    # When end of stage get the state with no enemies
+                # if done:
+                #     state = self.env.state()    # When end of stage get the state with no enemies
                 agent.remember(state, action, log_prob, val, reward, done)
                 self.step += 1
                 # if self.step % 10 == 0:
@@ -214,6 +214,7 @@ class Trainer:
 class WandB:
     def __init__(self, project_name, chkpt, config, resume):
         self.wandb_dict = {}
+        return
         wandb.init(
             project=project_name,
             resume=resume,
@@ -225,7 +226,7 @@ class WandB:
         self.wandb_dict.update(kwds)
 
     def log (self):
-        wandb.log(self.wandb_dict)
+        # wandb.log(self.wandb_dict)
         self.wandb_dict = {}
 
     def __call__(self, *args, **kwds):
@@ -263,5 +264,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=220)
+    trainer = Trainer(chkpt=231)
     trainer.train()
