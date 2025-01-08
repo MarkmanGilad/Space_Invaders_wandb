@@ -96,7 +96,7 @@ class ActorNetwork(nn.Module):
         T.save(self.state_dict(), self.checkpoint_file)
 
     def load_checkpoint(self):
-        self.load_state_dict(T.load(self.checkpoint_file))
+        self.load_state_dict(T.load(self.checkpoint_file,weights_only=True))
 
     def get_all_params_as_list(self):
         params = [p.data.cpu().numpy().flatten() for p in self.parameters()]
@@ -135,7 +135,7 @@ class CriticNetwork(nn.Module):
         T.save(self.state_dict(), self.checkpoint_file)
 
     def load_checkpoint(self):
-        self.load_state_dict(T.load(self.checkpoint_file))
+        self.load_state_dict(T.load(self.checkpoint_file,weights_only=True))
 
 class PPO_Agent:
     def __init__(self, chkpt, input_dims=184, n_actions=4, logger=None, wandb = None):
@@ -146,21 +146,21 @@ class PPO_Agent:
         self.gae_lambda = 0.97
         self.max_grad_norm = 0.5  
         self.batch_size = 32
-        self.lr_actor = 1e-3
-        self.lr_critic = 1e-3
+        self.lr_actor = 3e-4
+        self.lr_critic = 3e-4
         self.weight_decay = 0.1
-        self.optim_step = 2000
+        self.optim_step = 5000
         self.optim_gamma = 0.95
-        self.critic_actor_ratio = 0.5
+        self.critic_actor_ratio = 0.3
         self.logger = logger
         self.wandb = None   # will be updated by Trainer
         self.frame_skip = 0 # number of frame to skip
         self.skip = 0   # counter for skipping memmory
         self.learn_step = 0 # counter for number of learning
-        self.entropy_coefficient = 0.2
+        self.entropy_coefficient = 0.1
         self.entropy_coe_min = 0.01
-        self.entropy_decay = 0.90         # Slower decay
-        self.entropy_decay_steps = 500    # Less frequent decay
+        self.entropy_decay = 0.95         # Slower decay
+        self.entropy_decay_steps = 3000    # Less frequent decay
 
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger, weight_decay=self.weight_decay)

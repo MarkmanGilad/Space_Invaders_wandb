@@ -120,7 +120,7 @@ class Trainer:
                 action, log_prob, val = agent.choose_action(state)
                 reward, done = self.env.move(action=action)
                 if done:
-                    state = state = self.env.state()
+                    state = self.env.state()    # When end of stage get the state with no enemies
                 agent.remember(state, action, log_prob, val, reward, done)
                 self.step += 1
                 # if self.step % 10 == 0:
@@ -263,5 +263,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=207)
+    trainer = Trainer(chkpt=220)
     trainer.train()
