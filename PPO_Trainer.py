@@ -214,7 +214,6 @@ class Trainer:
 class WandB:
     def __init__(self, project_name, chkpt, config, resume):
         self.wandb_dict = {}
-        return
         wandb.init(
             project=project_name,
             resume=resume,
@@ -226,7 +225,7 @@ class WandB:
         self.wandb_dict.update(kwds)
 
     def log (self):
-        # wandb.log(self.wandb_dict)
+        wandb.log(self.wandb_dict)
         self.wandb_dict = {}
 
     def __call__(self, *args, **kwds):
@@ -264,5 +263,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=231)
+    trainer = Trainer(chkpt=234)
     trainer.train()
