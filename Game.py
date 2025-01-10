@@ -30,7 +30,6 @@ def main ():
         action = player.get_Action(events=events, state=env.state())
         reward, done = env.move(action=action)
         if done:
-            
             graphics.write ("End Of Game - Score: " + str (env.score))
             graphics.write ("Another Game ?  Y / N", pos=(300, 60))
             

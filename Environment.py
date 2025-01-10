@@ -4,15 +4,17 @@ import numpy as np
 import torch
 from CONSTANTS import *
 from SpaceShip import SpaceShip
-from Enemy import Enemy
+from Enemy import Enemy, Explosion
 from Ground import Ground
+
 import random
 
 
 class Environment:
+        
     def __init__(self, surface) -> None:
         self.bullets_Group = pygame.sprite.Group()
-        self.spaceship = SpaceShip(SPACESHIP_URL, (WIDTH //2, HEIGHT - 100), self.bullets_Group)
+        self.spaceship = SpaceShip((WIDTH //2, HEIGHT - 100), self.bullets_Group)
         self.spaceship_Group = pygame.sprite.GroupSingle(self.spaceship)
         self.enemy_bullets_Group = pygame.sprite.Group()
         self.enemy_img = pygame.image.load(ENEMY_URL)
@@ -26,12 +28,14 @@ class Environment:
         self.init_rewards()
         self.add_shoot_factor = 0.1
         self.next_stage = False
+        self.Explosion_Group = pygame.sprite.Group()
+        self.die = False
 
     def init_rewards (self):
         self.end_of_game = -1
         self.end_of_stage = 2
         self.hit = 1
-        self.amunition = -0.00
+        self.amunition = -0.01
         self.enemy_above = -0.00
         self.delta = 7.5  # width of spaceship / 2
 
@@ -52,6 +56,7 @@ class Environment:
         self.enemy_Group.update()
         self.bullets_Group.update()
         self.enemy_bullets_Group.update()
+        self.Explosion_Group.update()
     
     def draw (self):
         surface = self.surface
@@ -60,6 +65,7 @@ class Environment:
         self.enemy_Group.draw(surface)
         self.bullets_Group.draw(surface)
         self.enemy_bullets_Group.draw(surface)
+        self.Explosion_Group.draw(surface)
 
     def restart (self):
         width = WIDTH // 2 - 30
@@ -71,11 +77,15 @@ class Environment:
             self.spaceship.rect.midbottom = (width, HEIGHT - 100)
             self.next_stage = False
         else:
+            self.spaceship = SpaceShip((WIDTH //2, HEIGHT - 100), self.bullets_Group)
+            self.spaceship_Group = pygame.sprite.GroupSingle(self.spaceship)
             self.spaceship.rect.midbottom = (width, HEIGHT - 100)
+            self.die = False
             Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
             self.score = 0
             self.level = 1
             self.enemy_Group = self.make_enemy_group()
+
                     
         self.spaceship.ammunition = MAX_AMMUNITION
         self.bullets_Group.empty()
@@ -98,12 +108,15 @@ class Environment:
         self.score += hits
         if self.is_end_of_stage():
             reward += self.end_of_stage
-            # self.restart(add_shoot_factor=0.1, new_game=False)
             self.next_stage = True
+            self.restart()
+            return reward, False
+        done, die = self.is_end_of_Game()
+        if done:
             return reward, True
-        if self.is_end_of_Game():
+        if die:
             reward += self.end_of_game
-            return reward, True
+            return reward, False
         if self.is_enemy_missile_above():
             reward += self.enemy_above
         return reward, False
@@ -119,19 +132,32 @@ class Environment:
         return enemies == 0
    
     def is_end_of_Game (self):
+        if self.die:
+            done = len(self.spaceship_Group)==0 and len(self.Explosion_Group) == 0
+            return done, self.die
+
         if self.spaceship.ammunition == 0 and len(self.enemy_Group) > 0 and len(self.bullets_Group)==0:      
-            return True
-        enemy_landed = pygame.sprite.spritecollide(self.ground, self.enemy_Group, dokill=True)
-        spaceship_hit = pygame.sprite.spritecollide(self.spaceship, self.enemy_bullets_Group, dokill=True, collided= pygame.sprite.collide_mask) 
-        return len(enemy_landed) > 0 or len(spaceship_hit) > 0
+            self.die = True
+        else:
+            enemy_landed = pygame.sprite.spritecollide(self.ground, self.enemy_Group, dokill=True)
+            spaceship_hit = pygame.sprite.spritecollide(self.spaceship, self.enemy_bullets_Group, dokill=True, collided= pygame.sprite.collide_mask) 
+            self.die = len(enemy_landed) > 0 or len(spaceship_hit) > 0
+        if self.die:
+            explosion = Explosion(self.spaceship.rect.topleft)
+            self.Explosion_Group.add(explosion)
+            self.spaceship.kill()
+
+        return False, self.die
         
     def hits (self):
-        collisions = pygame.sprite.groupcollide(self.enemy_Group, self.bullets_Group, False, True, pygame.sprite.collide_mask)
+        collisions = pygame.sprite.groupcollide(self.enemy_Group, self.bullets_Group, True, True, pygame.sprite.collide_mask)
         for enemy, bullets in collisions.items():
             enemy.explode()
             # self.enemy_Group.remove(enemy)          # Remove the enemy from self.enemy_Group
             # self.bullets_Group.remove(bullets[0])   # Remove the first (and only) bullet from self.bullets_Group 
-
+        for enemy, bullets in collisions.items():
+            explosion = Explosion(enemy.rect.topleft)
+            self.Explosion_Group.add(explosion)
         return len(collisions)
     
     def normX(self, x):
@@ -214,5 +240,5 @@ class Environment:
         state_list.append(normS(SPACESHIP_BULLET_SPEED))            
         state_list.append(self.spaceship.ammunition/100)            
         state_list.append(self.level)                               
-        # state_list.append(self.score)                             
+        state_list.append(len(self.spaceship_Group))                             
         return torch.tensor(state_list, dtype=torch.float32)

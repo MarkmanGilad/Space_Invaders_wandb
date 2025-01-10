@@ -138,7 +138,7 @@ class CriticNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file,weights_only=True))
 
 class PPO_Agent:
-    def __init__(self, chkpt, input_dims=184, n_actions=4, logger=None, wandb = None):
+    def __init__(self, chkpt, input_dims=185, n_actions=4, logger=None, wandb = None):
         self.gamma = 0.95
         self.policy_clip = 0.2
         self.value_clip = 0.2  

@@ -45,9 +45,23 @@ class Enemy (pygame.sprite.Sprite):
 
     
     def explode(self):
-        self.image = Enemy.explotion_img
         self.live = -1
     
+class Explosion (pygame.sprite.Sprite):
 
-    
+    explotion_img = pygame.image.load("img/explosion.png")
+    explotion_img = pygame.transform.scale(explotion_img, (40, 40))
+        
+    def __init__(self, pos):
+        super().__init__()
+        self.image = Explosion.explotion_img
+        self.rect = self.image.get_rect(topleft = pos)
+        self.mode = 0
+        
+    def update(self) -> None:
+        if self.mode < 5:
+            self.mode += 1
+        else:
+            self.kill()
+        
         

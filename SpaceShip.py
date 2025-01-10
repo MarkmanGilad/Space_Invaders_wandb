@@ -3,10 +3,12 @@ from CONSTANTS import *
 from Bullet import Bullet
 
 class SpaceShip (pygame.sprite.Sprite):
-    def __init__(self, img_Url, pos, bullets_Group) -> None:
+    spacship_img = pygame.image.load(SPACESHIP_URL)
+    spacship_img = pygame.transform.scale(spacship_img, (60, 60))
+
+    def __init__(self, pos, bullets_Group) -> None:
         super().__init__()
-        self.image = pygame.image.load(img_Url)
-        self.image = pygame.transform.scale(self.image, (60, 60))
+        self.image = SpaceShip.spacship_img
         self.rect = self.image.get_rect(midbottom = pos)
         self.mask = pygame.mask.from_surface(self.image)
         self.bullets_Group = bullets_Group
