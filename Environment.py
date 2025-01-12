@@ -33,10 +33,10 @@ class Environment:
 
     def init_rewards (self):
         self.end_of_game = -1
-        self.end_of_stage = 2
+        self.end_of_stage = 5
         self.hit = 1
-        self.amunition = -0.01
-        self.enemy_above = -0.00
+        self.amunition = -0.00
+        self.enemy_above = -0.01
         self.delta = 7.5  # width of spaceship / 2
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
@@ -217,7 +217,7 @@ class Environment:
             state_list.append(normX(sprite.rect.centerx-ship_x-bullet_w))
             state_list.append(normX(sprite.rect.centerx-ship_x+bullet_w))
             state_list.append(normY(sprite.rect.centery-ship_y-bullet_h))
-            state_list.append(normY(sprite.rect.centerx-ship_x+bullet_h))
+            state_list.append(normY(sprite.rect.centerx-ship_y+bullet_h))
         
         for i in range(enemy_bullets-len(self.enemy_bullets_Group)):
             state_list.extend([0,0,0,0,0])

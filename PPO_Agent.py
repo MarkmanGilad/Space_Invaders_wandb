@@ -274,6 +274,7 @@ class PPO_Agent:
                 states = T.tensor(state_arr[batch], dtype=T.float).to(self.actor.device)
                 old_log_probs = T.tensor(old_log_probs_arr[batch]).to(self.actor.device)
                 actions = T.tensor(action_arr[batch]).to(self.actor.device)
+                old_critic_values = T.tensor(val_arr[batch], dtype=T.float).to(self.actor.device)
                 dist = self.actor(states)
                 new_log_probs = dist.log_prob(actions)
 
@@ -289,7 +290,7 @@ class PPO_Agent:
                 actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
 
                 # Calculate critic loss
-                value_clipped = returns[batch] + T.clamp(critic_value - returns[batch], -self.value_clip, self.value_clip)
+                value_clipped = old_critic_values + T.clamp(critic_value - old_critic_values, -self.value_clip, self.value_clip)
                 critic_loss1 = (returns[batch] - critic_value) ** 2
                 critic_loss2 = (returns[batch] - value_clipped) ** 2
                 critic_loss = T.max(critic_loss1, critic_loss2).mean()

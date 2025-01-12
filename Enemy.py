@@ -59,7 +59,7 @@ class Explosion (pygame.sprite.Sprite):
         self.mode = 0
         
     def update(self) -> None:
-        if self.mode < 5:
+        if self.mode < 1:
             self.mode += 1
         else:
             self.kill()
