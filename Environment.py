@@ -6,6 +6,7 @@ from CONSTANTS import *
 from SpaceShip import SpaceShip
 from Enemy import Enemy, Explosion
 from Ground import Ground
+from Bullet import Bullet
 
 import random
 
@@ -69,10 +70,13 @@ class Environment:
 
     def restart (self):
         width = WIDTH // 2 - 30
+        Enemy.current_index = 0
+        Bullet.current_index = 0
 
         if self.next_stage:
             self.level += 1
             Enemy.shoots_factor += self.add_shoot_factor
+            
             self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
             self.spaceship.rect.midbottom = (width, HEIGHT - 100)
             self.next_stage = False

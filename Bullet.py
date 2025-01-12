@@ -2,6 +2,9 @@ import pygame
 from CONSTANTS import *
 
 class Bullet (pygame.sprite.Sprite):
+
+    current_index = 0  # Class attribute for indexing enemies
+
     def __init__(self, pos, speed_x=0, speed_y= -10, color = RED) -> None:
         super().__init__()
         self.image = pygame.Surface((5,5))
@@ -10,6 +13,8 @@ class Bullet (pygame.sprite.Sprite):
         self.mask = pygame.mask.from_surface(self.image)
         self.speed_x = speed_x
         self.speed_y = speed_y
+        self.index = Bullet.current_index
+        Bullet.current_index += 1
 
     def update(self) -> None:
         self.move()

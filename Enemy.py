@@ -8,6 +8,7 @@ class Enemy (pygame.sprite.Sprite):
     speed_y = 40
     explotion_img = pygame.image.load("img/explosion.png")
     explotion_img = pygame.transform.scale(explotion_img, (40, 40))
+    current_index = 0  # Class attribute for indexing enemies
 
     def __init__(self, img, pos, Enemy_bullets_Group, speed = ENEMY_START_SPEED) -> None:
         super().__init__()
@@ -17,6 +18,8 @@ class Enemy (pygame.sprite.Sprite):
         self.speed_x = speed
         self.Enemy_bullets_Group = Enemy_bullets_Group
         self.live = 1 
+        self.index = Enemy.current_index
+        Enemy.current_index += 1
 
     def update(self) -> None:
         if self.live == -1:
