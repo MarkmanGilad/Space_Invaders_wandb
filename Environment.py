@@ -30,27 +30,29 @@ class Environment:
         self.add_shoot_factor = 0.1
         self.next_stage = False
         self.Explosion_Group = pygame.sprite.Group()
-        self.die = False
+        self.hit = 0
+        self.end_of_game = False
+        self.end_of_stage = False
 
     def init_rewards (self):
-        self.end_of_game = -1
-        self.end_of_stage = 5
-        self.hit = 1
-        self.amunition = -0.00
-        self.enemy_above = -0.01
+        self.game_reward = -100
+        self.stage_reward = 100
+        self.hit_reward = 1
+        self.amunition_reward = -0.00
+        self.misile_above_reward = -0.01
         self.delta = 7.5  # width of spaceship / 2
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
         
         row , col = 3 , 6
-        for r in range (row):
-            for c in range (col):
-                enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
-        # all_enemies = [(x, y) for x in range(4) for y in range(7)]
-        # sample_enemies = random.sample(all_enemies, 1)
-        # for r, c in sample_enemies:
-        #     enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
+        # for r in range (row):
+        #     for c in range (col):
+        #         enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
+        all_enemies = [(x, y) for x in range(4) for y in range(7)]
+        sample_enemies = random.sample(all_enemies, 1)
+        for r, c in sample_enemies:
+            enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
         return enemy_Group
     
     def update (self):
@@ -75,30 +77,40 @@ class Environment:
         Enemy_bullet.clear_state_index()
         Ship_bullet.clear_state_index()
 
-        if self.next_stage:
+        if self.end_of_stage:
             self.level += 1
             Enemy.shoots_factor += self.add_shoot_factor
-            
             self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
             self.spaceship.rect.midbottom = (width, HEIGHT - 100)
-            self.next_stage = False
-        else:
+            
+        if self.end_of_game:
             self.spaceship = SpaceShip((WIDTH //2, HEIGHT - 100), self.bullets_Group)
             self.spaceship_Group = pygame.sprite.GroupSingle(self.spaceship)
             self.spaceship.rect.midbottom = (width, HEIGHT - 100)
-            self.die = False
             Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
             self.score = 0
             self.level = 1
             self.enemy_Group = self.make_enemy_group()
 
-                    
+        self.end_of_stage = False
+        self.end_of_game = False      
+        self.hit = 0  
         self.spaceship.ammunition = MAX_AMMUNITION
         self.bullets_Group.empty()
         self.enemy_bullets_Group.empty()    
         
     def move (self, action):
-        reward = 0
+        reward = self.hit * self.hit_reward
+        if self.end_of_stage:
+            reward += self.stage_reward
+            self.restart()
+            return reward, False
+
+        if self.end_of_game:
+            reward += self.game_reward
+            self.restart()
+            return reward, True
+        
         if action == 1:
             self.spaceship.move_left()
         elif action == 2:
@@ -106,25 +118,18 @@ class Environment:
         elif action == 3:
             self.spaceship.shoot ()
             if self.spaceship.ammunition > 0:
-                reward += self.amunition              # don't waste ammunition
+                reward += self.amunition_reward              # don't waste ammunition
+        
         self.update()
         self.draw()        
-        hits = self.hits()
-        reward +=  hits * self.hit
-        self.score += hits
-        if self.is_end_of_stage():
-            reward += self.end_of_stage
-            self.next_stage = True
-            self.restart()
-            return reward, False
-        done, die = self.is_end_of_Game()
-        if done:
-            return reward, True
-        if die:
-            reward += self.end_of_game
-            return reward, False
         if self.is_enemy_missile_above():
-            reward += self.enemy_above
+            reward += self.misile_above_reward
+        
+        self.hit = self.hits()
+        self.score += self.hit
+        self.is_end_of_stage()
+        self.is_end_of_Game()
+                
         return reward, False
     
     def is_enemy_missile_above(self):
@@ -135,25 +140,22 @@ class Environment:
 
     def is_end_of_stage (self):
         enemies = len(self.enemy_Group)
-        return enemies == 0
+        self.end_of_stage = (enemies == 0)
    
     def is_end_of_Game (self):
-        if self.die:
-            done = len(self.spaceship_Group)==0 and len(self.Explosion_Group) == 0
-            return done, self.die
-
+        
         if self.spaceship.ammunition == 0 and len(self.enemy_Group) > 0 and len(self.bullets_Group)==0:      
-            self.die = True
+            done = True
+            return
+        
         else:
             enemy_landed = pygame.sprite.spritecollide(self.ground, self.enemy_Group, dokill=True)
             spaceship_hit = pygame.sprite.spritecollide(self.spaceship, self.enemy_bullets_Group, dokill=True, collided= pygame.sprite.collide_mask) 
-            self.die = len(enemy_landed) > 0 or len(spaceship_hit) > 0
-        if self.die:
-            explosion = Explosion(self.spaceship.rect.topleft)
-            self.Explosion_Group.add(explosion)
-            self.spaceship.kill()
+            done = len(enemy_landed) > 0 or len(spaceship_hit) > 0
+        
+        self.end_of_game = done
 
-        return False, self.die
+        
         
     def hits (self):
         collisions = pygame.sprite.groupcollide(self.enemy_Group, self.bullets_Group, True, True, pygame.sprite.collide_mask)
