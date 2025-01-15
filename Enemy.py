@@ -1,14 +1,19 @@
 import pygame
-from CONSTANTS import *
+import numpy as np
 import random
-from Bullet import Bullet
+from CONSTANTS import *
+from Bullet import Enemy_bullet as Bullet
 
 class Enemy (pygame.sprite.Sprite):
     shoots_factor = ENEMY_SHOOTS_FACTOR
     speed_y = 40
     explotion_img = pygame.image.load("img/explosion.png")
     explotion_img = pygame.transform.scale(explotion_img, (40, 40))
-    current_index = 0  # Class attribute for indexing enemies
+    state_index = [None] * (ENEMY_ROWS * ENEMY_COLS)
+    
+    @classmethod
+    def clear_state_index(cls):
+        cls.state_index = [None] * (ENEMY_ROWS * ENEMY_COLS)
 
     def __init__(self, img, pos, Enemy_bullets_Group, speed = ENEMY_START_SPEED) -> None:
         super().__init__()
@@ -18,8 +23,8 @@ class Enemy (pygame.sprite.Sprite):
         self.speed_x = speed
         self.Enemy_bullets_Group = Enemy_bullets_Group
         self.live = 1 
-        self.index = Enemy.current_index
-        Enemy.current_index += 1
+        self.set_state_index()
+    
 
     def update(self) -> None:
         if self.live == -1:
@@ -49,7 +54,19 @@ class Enemy (pygame.sprite.Sprite):
     
     def explode(self):
         self.live = -1
+
+    def set_state_index (self):
+        free = Enemy.state_index.index(None)
+        Enemy.state_index[free] = self
+        self.state_pos = free
+
+    def kill(self):
+        super().kill()
+        Enemy.state_index[self.state_pos] = None
+
     
+
+
 class Explosion (pygame.sprite.Sprite):
 
     explotion_img = pygame.image.load("img/explosion.png")
