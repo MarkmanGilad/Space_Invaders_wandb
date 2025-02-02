@@ -73,7 +73,7 @@ class ActorNetwork(nn.Module):
         self.relu = nn.ReLU()
         self.softmax = nn.Softmax(dim=-1)
         self.checkpoint_file = f'Data/Actor{chkpt}.pth'
-        self.optimizer = optim.Adam(self.parameters(), lr=lr)
+        self.optimizer = optim.Adam(self.parameters(), lr=lr)       # without weight_decay
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=optim_step, gamma=optim_gamma)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
         self.to(self.device)
@@ -160,7 +160,7 @@ class PPO_Agent:
         self.entropy_coefficient = 0.1
         self.entropy_coe_min = 0.01
         self.entropy_decay = 0.95         # Slower decay
-        self.entropy_decay_steps = 3000    # Less frequent decay
+        self.entropy_decay_steps = 100    # Less frequent decay
 
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger, weight_decay=self.weight_decay)
@@ -201,8 +201,8 @@ class PPO_Agent:
         advantage = np.zeros_like(reward_arr, dtype=np.float32)
         returns = np.zeros_like(reward_arr, dtype=np.float32)
         
-        future_return = val_arr[-1] if not done_arr[-1] else 0  # Initialize with V(s_{t+n}) for truncated trajectory
-        future_advantage = 0
+        # future_return = val_arr[-1] if not done_arr[-1] else 0  # Initialize with V(s_{t+n}) for truncated trajectory
+        future_advantage = val_arr[-1] if not done_arr[-1] else 0  # Initialize with V(s_{t+n}) for truncated trajectory
         for t in reversed(range(len(reward_arr))):
             if t == len(reward_arr) - 1:  
                 td_error = reward_arr[t] - val_arr[t]  # No next value for last step
@@ -210,17 +210,17 @@ class PPO_Agent:
                 td_error = reward_arr[t] + self.gamma * val_arr[t+1] * (1 - int(done_arr[t])) - val_arr[t]
                 
             # GAE advantage calculation
-            # future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
-            # advantage[t] = future_advantage
-        
+            future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
+            advantage[t] = future_advantage
+            returns[t] = advantage[t] + val_arr[t]
             
             # Reward-to-go calculation (returns)
-            future_return = reward_arr[t] + self.gamma * future_return * (1 - int(done_arr[t]))
-            returns[t] = future_return
+            # future_return = reward_arr[t] + self.gamma * future_return * (1 - int(done_arr[t]))
+            # returns[t] = future_return
 
         # Calculate advantage as returns - values
-        values = np.array(val_arr, dtype=np.float32)
-        advantage = returns - values
+        # values = np.array(val_arr, dtype=np.float32)
+        # advantage = returns - values
 
 
         # Convert to tensors and move to device
@@ -262,7 +262,7 @@ class PPO_Agent:
             return
         
         # Normalize rewards
-        reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
+        # reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
 
         # Compute advantage and returns
         advantage, returns = self.calculate_advantage_and_returns(reward_arr, val_arr, done_arr)
@@ -290,11 +290,14 @@ class PPO_Agent:
                 actor_loss = -T.min(weighted_probs, weighted_clipped_probs).mean()
 
                 # Calculate critic loss
-                value_clipped = old_critic_values + T.clamp(critic_value - old_critic_values, -self.value_clip, self.value_clip)
-                critic_loss1 = (returns[batch] - critic_value) ** 2
-                critic_loss2 = (returns[batch] - value_clipped) ** 2
-                critic_loss = T.max(critic_loss1, critic_loss2).mean()
+                # value_clipped = old_critic_values + T.clamp(critic_value - old_critic_values, -self.value_clip, self.value_clip)
+                # critic_loss1 = (returns[batch] - critic_value) ** 2
+                # critic_loss2 = (returns[batch] - value_clipped) ** 2
+                # critic_loss = T.max(critic_loss1, critic_loss2).mean()
                 
+                # Calculate critic loss without clipping
+                critic_loss = ((returns[batch] - critic_value) ** 2).mean()
+
 
                 # Add entropy bonus for exploration
                 dist_entropy = dist.entropy().mean()
@@ -324,8 +327,8 @@ class PPO_Agent:
                 self.actor.optimizer.step()
                 self.critic.optimizer.step()
 
-            self.critic.scheduler.step()
-            self.actor.scheduler.step()
+        self.critic.scheduler.step()
+        self.actor.scheduler.step()
 
 
         self.memory.clear_memory()

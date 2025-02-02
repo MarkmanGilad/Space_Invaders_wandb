@@ -71,27 +71,35 @@ class Environment:
         self.enemy_bullets_Group.draw(surface)
         self.Explosion_Group.draw(surface)
 
+    def new_stage (self):
+        width = WIDTH // 2 - 30
+        Enemy.clear_state_index()
+        Enemy_bullet.clear_state_index()
+        self.level += 1
+        # Enemy.shoots_factor += self.add_shoot_factor
+        self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
+        self.end_of_stage = False
+        self.end_of_game = False      
+        self.hit = 0  
+        self.spaceship.ammunition = MAX_AMMUNITION
+        self.enemy_bullets_Group.empty()    
+    
+
     def restart (self):
         width = WIDTH // 2 - 30
         Enemy.clear_state_index()
         Enemy_bullet.clear_state_index()
         Ship_bullet.clear_state_index()
 
-        if self.end_of_stage:
-            self.level += 1
-            # Enemy.shoots_factor += self.add_shoot_factor
-            self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
-            self.spaceship.rect.midbottom = (width, HEIGHT - 100)
-            
-        else:
-            self.spaceship = SpaceShip((WIDTH //2, HEIGHT - 100), self.bullets_Group)
-            self.spaceship_Group = pygame.sprite.GroupSingle(self.spaceship)
-            self.spaceship.rect.midbottom = (width, HEIGHT - 100)
-            Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
-            # self.score = 0
-            self.level = 1
-            self.enemy_Group = self.make_enemy_group()
-            
+        
+        self.spaceship = SpaceShip((WIDTH //2, HEIGHT - 100), self.bullets_Group)
+        self.spaceship_Group = pygame.sprite.GroupSingle(self.spaceship)
+        self.spaceship.rect.midbottom = (width, HEIGHT - 100)
+        Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
+        # self.score = 0
+        self.level = 1
+        self.enemy_Group = self.make_enemy_group()
+        
 
         self.end_of_stage = False
         self.end_of_game = False      
@@ -101,6 +109,59 @@ class Environment:
         self.enemy_bullets_Group.empty()    
         
     def move (self, action):
+        reward = 0
+        # 1) apply the action
+        if action == 1:
+            self.spaceship.move_left()
+        elif action == 2:
+            self.spaceship.move_right()
+        elif action == 3:
+            if self.spaceship.ammunition > 0 and (len(self.spaceship.bullets_Group) < self.spaceship.burst):
+                reward += self.amunition_reward              # don't waste ammunition
+            self.spaceship.shoot()
+
+        # 2) Update game state fully (positions, collisions, etc.)
+        self.update()    # moves all sprites
+        self.draw()      # optional if you want to render
+        
+        # 3) Compute collisions (hits) and see how many enemies were killed
+        hits_now = self.hits()             # collisions from this step
+        self.score += hits_now
+
+        # 4) Check if stage or game ended
+        self.is_end_of_stage()
+        self.is_end_of_Game()
+
+        # 5) Build your reward for THIS step
+        #    - reward for any hits that happened this step
+        reward = hits_now * self.hit_reward 
+
+        #    - if game ended this step, add end-of-game penalty
+        if self.end_of_game:
+            reward += self.game_reward
+
+        #    - if stage ended this step, add stage-complete reward
+        if self.end_of_stage:
+            reward += self.stage_reward
+
+        #    - small penalty if you are standing under a bullet
+        if self.is_enemy_missile_above():
+            reward += self.misile_above_reward
+
+
+        # 6) Check done and possibly reset if you prefer single-episode logic
+        
+        if self.end_of_game :
+            self.restart()
+            return reward, True
+            
+        if self.end_of_stage:
+            self.new_stage()
+        
+        return reward, False
+    
+
+    def move_copy (self, action):
         reward = self.hit * self.hit_reward
         if self.end_of_stage:
             reward += self.stage_reward
