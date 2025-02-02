@@ -37,9 +37,9 @@ def main ():
             pygame.display.update()
             if another_game():
                 env.restart()
+                env.score = 0
             else:
                 break
-        graphics
         graphics.header_writing(env=env, epoch=None)
         graphics.update()
         graphics.tick()

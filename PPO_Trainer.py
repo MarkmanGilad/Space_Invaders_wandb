@@ -52,13 +52,13 @@ class Trainer:
             n_step (int): Number of steps for n-step returns.
         """
         self.n_steps = 128
-        self.epochs = 50000
+        self.epochs = 100000
         self.start_epoch = 1
         self.step = 0
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''advantage as return - values; no advantage norm'''
+        self.remark = '''two enemies'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -88,8 +88,8 @@ class Trainer:
                  "reward_hit":self.env.hit,
                  "reward_end_of_game": self.env.end_of_game,
                  "reward_end_of_stage": self.env.end_of_stage,
-                 "reward_amunition": self.env.amunition,
-                 'reward_enemy_above': self.env.enemy_above,
+                 "reward_amunition": self.env.amunition_reward,
+                 'reward_enemy_above': self.env.misile_above_reward,
                  'delta_width': self.env.delta,
                  'remark': remark,  
                  'critic_actor_ratio': self.agent.critic_actor_ratio,
@@ -107,9 +107,10 @@ class Trainer:
         """
         agent = self.agent
         self.epochs = epochs
-
+        self.env.restart()
         for epoch in range(self.start_epoch, self.epochs):
-            self.env.restart()
+            if self.env.level == 1:
+                self.env.score = 0
             done = False
             state = self.env.state()
             self.step = 0
@@ -263,5 +264,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=307)
+    trainer = Trainer(chkpt=327)
     trainer.train()

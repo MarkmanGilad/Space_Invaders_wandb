@@ -139,17 +139,17 @@ class CriticNetwork(nn.Module):
 
 class PPO_Agent:
     def __init__(self, chkpt, input_dims=185, n_actions=4, logger=None, wandb = None):
-        self.gamma = 0.95
+        self.gamma = 0.995
         self.policy_clip = 0.2
         self.value_clip = 0.2  
         self.n_epochs = 4
-        self.gae_lambda = 0.97
+        self.gae_lambda = 0.99
         self.max_grad_norm = 0.5  
         self.batch_size = 32
-        self.lr_actor = 3e-4
-        self.lr_critic = 3e-4
+        self.lr_actor = 1e-3
+        self.lr_critic = 1e-3
         self.weight_decay = 0.1
-        self.optim_step = 5000
+        self.optim_step = 10000
         self.optim_gamma = 0.95
         self.critic_actor_ratio = 0.3
         self.logger = logger
