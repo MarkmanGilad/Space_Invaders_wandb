@@ -79,7 +79,7 @@ class Environment:
 
         if self.end_of_stage:
             self.level += 1
-            Enemy.shoots_factor += self.add_shoot_factor
+            # Enemy.shoots_factor += self.add_shoot_factor
             self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
             self.spaceship.rect.midbottom = (width, HEIGHT - 100)
             
@@ -211,7 +211,7 @@ class Environment:
                 state_list.append(normX(sprite.rect.centerx-ship_x-bullet_w))
                 state_list.append(normX(sprite.rect.centerx-ship_x+bullet_w))
                 state_list.append(normY(sprite.rect.centery-ship_y-bullet_h))
-                state_list.append(normY(sprite.rect.centerx-ship_y+bullet_h))
+                state_list.append(normY(sprite.rect.centery-ship_y+bullet_h))
             else:
                 state_list.extend([0,0,0,0,0])
     
