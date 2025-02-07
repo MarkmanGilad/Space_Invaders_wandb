@@ -51,14 +51,14 @@ class Trainer:
         Args:
             n_step (int): Number of steps for n-step returns.
         """
-        self.n_steps = 128
+        self.n_steps = 512
         self.epochs = 100000
         self.start_epoch = 1
         self.step = 0
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''two enemies'''
+        self.remark = '''two enemies + next stage with same speed + 1024 steps with several dones + end of stage is done'''
         self.scores = []
         self.losses = []
         self.avg_score = []
@@ -107,28 +107,27 @@ class Trainer:
         """
         agent = self.agent
         self.epochs = epochs
-        self.env.restart()
+        self.step = 0
         for epoch in range(self.start_epoch, self.epochs):
-            if self.env.level == 1:
-                self.env.score = 0
+            self.env.restart()
             done = False
-            state = self.env.state()
-            self.step = 0
+            state = self.env.state()        
+            if self.env.level == 1:                 # clearing score after logging only when new_game
+                self.env.score = 0
             while not done:
                 self.graphics.clear()
                 self.graphics.event_pump()
                 self.graphics.events()
                 action, log_prob, val = agent.choose_action(state)
                 reward, done = self.env.move(action=action)
-                # if done:
-                #     state = self.env.state()    # When end of stage get the state with no enemies
                 agent.remember(state, action, log_prob, val, reward, done)
                 self.step += 1
-                # if self.step % 10 == 0:
-                    # print(f'self.step: {self.step} action: {action} prob: {prob} val: {val}')
-
-                if done or self.step % self.n_steps == 0:
-                    agent.learn(epoch)
+                if self.step % self.n_steps == 0:
+                    if not done:                        # calculate next state value
+                        action, log_prob, val = agent.choose_action(state)
+                        agent.learn(val)
+                    else:
+                        agent.learn(0.0)             # nect state value is 0.0
 
                 state = self.env.state()
                 self.graphics.header_writing(env=self.env, epoch=epoch)
@@ -181,6 +180,9 @@ class Trainer:
         Args:
             epoch (int): Current training epoch.
         """
+        if not hasattr(self.agent, 'actor_loss'):
+            return
+        
         print(
             f'chkpt: {self.chkpt} epoch: {epoch}',
             f'actor_loss: {self.agent.actor_loss:.5f} critic_loss: {self.agent.critic_loss:.5f}',
@@ -264,5 +266,5 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=405)
+    trainer = Trainer(chkpt=431)
     trainer.train()

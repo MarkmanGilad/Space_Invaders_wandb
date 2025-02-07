@@ -53,7 +53,7 @@ class Enemy_bullet(Bullet):
 
 class Ship_bullet (Bullet):
 
-    state_index = [None] * MAX_ENEMY_BULLETS
+    state_index = [None] * SPACE_SHIP_BURST
     bullets_num = SPACE_SHIP_BURST
 
     def __init__(self, pos, speed_x=0, speed_y=-10, color=RED):

@@ -38,7 +38,7 @@ class Environment:
         self.game_reward = -2
         self.stage_reward = 2
         self.hit_reward = 1
-        self.amunition_reward = -0.00
+        self.amunition_reward = -0.001
         self.misile_above_reward = -0.00
         self.delta = 7.5  # width of spaceship / 2
 
@@ -70,14 +70,16 @@ class Environment:
         self.bullets_Group.draw(surface)
         self.enemy_bullets_Group.draw(surface)
         self.Explosion_Group.draw(surface)
-
+    
+    
     def new_stage (self):
-        width = WIDTH // 2 - 30
+        # width = WIDTH // 2 - 30
         Enemy.clear_state_index()
         Enemy_bullet.clear_state_index()
         self.level += 1
         # Enemy.shoots_factor += self.add_shoot_factor
-        self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))
+        # self.enemy_Group = self.make_enemy_group(speed= int(ENEMY_START_SPEED + self.level/2))   
+        self.enemy_Group = self.make_enemy_group()
         self.end_of_stage = False
         self.end_of_game = False      
         self.hit = 0  
@@ -86,28 +88,23 @@ class Environment:
     
 
     def restart (self):
-        width = WIDTH // 2 - 30
+    
         Enemy.clear_state_index()
         Enemy_bullet.clear_state_index()
+        width = WIDTH // 2 - 30
         Ship_bullet.clear_state_index()
-
-        
-        self.spaceship = SpaceShip((WIDTH //2, HEIGHT - 100), self.bullets_Group)
+        self.bullets_Group.empty()
+        self.spaceship = SpaceShip((width, HEIGHT - 100), self.bullets_Group)
         self.spaceship_Group = pygame.sprite.GroupSingle(self.spaceship)
-        self.spaceship.rect.midbottom = (width, HEIGHT - 100)
         Enemy.shoots_factor = ENEMY_SHOOTS_FACTOR
-        # self.score = 0
         self.level = 1
-        self.enemy_Group = self.make_enemy_group()
-        
-
         self.end_of_stage = False
         self.end_of_game = False      
-        self.hit = 0  
+        self.hit = 0              
+        self.enemy_Group = self.make_enemy_group()
         self.spaceship.ammunition = MAX_AMMUNITION
-        self.bullets_Group.empty()
         self.enemy_bullets_Group.empty()    
-        
+
     def move (self, action):
         reward = 0
         # 1) apply the action
@@ -136,64 +133,60 @@ class Environment:
         #    - reward for any hits that happened this step
         reward = hits_now * self.hit_reward 
 
-        #    - if game ended this step, add end-of-game penalty
-        if self.end_of_game:
-            reward += self.game_reward
-
         #    - if stage ended this step, add stage-complete reward
         if self.end_of_stage:
             reward += self.stage_reward
+            self.new_stage()
+            return reward, False
+        
+        #    - if game ended this step, add end-of-game penalty
+        if self.end_of_game:
+            reward += self.game_reward
+            # self.restart()            # restart is done in training loop
+            return reward, True
+        
 
         #    - small penalty if you are standing under a bullet
         if self.is_enemy_missile_above():
             reward += self.misile_above_reward
-
-
-        # 6) Check done and possibly reset if you prefer single-episode logic
-        
-        if self.end_of_game :
-            self.restart()
-            return reward, True
-            
-        if self.end_of_stage:
-            self.new_stage()
         
         return reward, False
-    
 
-    def move_copy (self, action):
-        reward = self.hit * self.hit_reward
-        if self.end_of_stage:
-            reward += self.stage_reward
-            self.restart()
-            return reward, True #False
+    #region
+    # def move_copy (self, action):
+    #     reward = self.hit * self.hit_reward
+    #     if self.end_of_stage:
+    #         reward += self.stage_reward
+    #         self.restart()
+    #         return reward, True #False
 
-        if self.end_of_game:
-            reward += self.game_reward
-            self.restart()
-            return reward, True
+    #     if self.end_of_game:
+    #         reward += self.game_reward
+    #         self.restart()
+    #         return reward, True
         
-        if action == 1:
-            self.spaceship.move_left()
-        elif action == 2:
-            self.spaceship.move_right()
-        elif action == 3:
-            if self.spaceship.ammunition > 0 and (len(self.spaceship.bullets_Group) < self.spaceship.burst):
-                reward += self.amunition_reward              # don't waste ammunition
-            self.spaceship.shoot ()
+    #     if action == 1:
+    #         self.spaceship.move_left()
+    #     elif action == 2:
+    #         self.spaceship.move_right()
+    #     elif action == 3:
+    #         if self.spaceship.ammunition > 0 and (len(self.spaceship.bullets_Group) < self.spaceship.burst):
+    #             reward += self.amunition_reward              # don't waste ammunition
+    #         self.spaceship.shoot ()
             
         
-        self.update()
-        self.draw()        
-        if self.is_enemy_missile_above():
-            reward += self.misile_above_reward
+    #     self.update()
+    #     self.draw()        
+    #     if self.is_enemy_missile_above():
+    #         reward += self.misile_above_reward
         
-        self.hit = self.hits()
-        self.score += self.hit
-        self.is_end_of_stage()
-        self.is_end_of_Game()
+    #     self.hit = self.hits()
+    #     self.score += self.hit
+    #     self.is_end_of_stage()
+    #     self.is_end_of_Game()
                 
-        return reward, False
+    #     return reward, False
+    #endregion
     
     def is_enemy_missile_above(self):
         SpaceShip_x = self.spaceship.rect.centerx
@@ -207,6 +200,10 @@ class Environment:
    
     def is_end_of_Game (self):
         
+        if self.end_of_stage:
+            return
+        
+        done = False
         if self.spaceship.ammunition == 0 and len(self.enemy_Group) > 0 and len(self.bullets_Group)==0:      
             done = True
         else:

@@ -145,13 +145,13 @@ class PPO_Agent:
         self.n_epochs = 4
         self.gae_lambda = 0.99
         self.max_grad_norm = 0.5  
-        self.batch_size = 32
+        self.batch_size = 128
         self.lr_actor = 1e-3
         self.lr_critic = 1e-3
         self.weight_decay = 0.1
         self.optim_step = 10000
         self.optim_gamma = 0.95
-        self.critic_actor_ratio = 0.3
+        self.critic_actor_ratio = 0.5
         self.logger = logger
         self.wandb = None   # will be updated by Trainer
         self.frame_skip = 0 # number of frame to skip
@@ -160,13 +160,14 @@ class PPO_Agent:
         self.entropy_coefficient = 0.1
         self.entropy_coe_min = 0.01
         self.entropy_decay = 0.95         # Slower decay
-        self.entropy_decay_steps = 100    # Less frequent decay
+        self.entropy_decay_steps = 50    # Less frequent decay
 
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger, weight_decay=self.weight_decay)
         self.critic = CriticNetwork(input_dims, self.lr_critic, chkpt=chkpt, optim_step=self.optim_step, 
                                     optim_gamma=self.optim_gamma, weight_decay=self.weight_decay)
         self.memory = PPOMemory(self.batch_size)
+       
 
     def remember(self, state, action, probs, vals, reward, done):
         # if (reward == 0 or reward == -0.05) and self.skip < self.frame_skip:      # no skipping
@@ -197,32 +198,38 @@ class PPO_Agent:
 
         return action, log_prob, value
 
-    def calculate_advantage_and_returns (self, reward_arr, val_arr, done_arr):
+    def calculate_advantage_and_returns (self, reward_arr, val_arr, done_arr, next_val):
+        '''
+        last step is always end of game. last done must be true
+        '''
+        
         advantage = np.zeros_like(reward_arr, dtype=np.float32)
         returns = np.zeros_like(reward_arr, dtype=np.float32)
-        
-        # future_return = val_arr[-1] if not done_arr[-1] else 0  # Initialize with V(s_{t+n}) for truncated trajectory
-        future_advantage = val_arr[-1] if not done_arr[-1] else 0  # Initialize with V(s_{t+n}) for truncated trajectory
-        for t in reversed(range(len(reward_arr))):
-            if t == len(reward_arr) - 1:  
-                td_error = reward_arr[t] - val_arr[t]  # No next value for last step
-            else:
-                td_error = reward_arr[t] + self.gamma * val_arr[t+1] * (1 - int(done_arr[t])) - val_arr[t]
                 
+        future_advantage = 0.0
+        
+        for t in reversed(range(len(reward_arr))):
+
+            # For the last time step, use next_val for bootstrapping if not done
+            if t == len(reward_arr) - 1:
+                next_value = next_val * (1 - int(done_arr[t]))
+            else:
+                next_value = val_arr[t+1] * (1 - int(done_arr[t]))
+            
+            td_error = reward_arr[t] + self.gamma * next_value - val_arr[t]
+            
             # GAE advantage calculation
-            future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
+            if done_arr[t]:
+                future_advantage = 0.0
+            else:
+                future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
+            
             advantage[t] = future_advantage
+            
+            #Return = V(s_t) + advantage
             returns[t] = advantage[t] + val_arr[t]
             
-            # Reward-to-go calculation (returns)
-            # future_return = reward_arr[t] + self.gamma * future_return * (1 - int(done_arr[t]))
-            # returns[t] = future_return
-
-        # Calculate advantage as returns - values
-        # values = np.array(val_arr, dtype=np.float32)
-        # advantage = returns - values
-
-
+            
         # Convert to tensors and move to device
         advantage = T.tensor(advantage).to(self.actor.device)
         returns = T.tensor(returns).to(self.actor.device)
@@ -241,7 +248,7 @@ class PPO_Agent:
         
         return advantage_norm, returns
         
-    def learn(self, epoch):
+    def learn(self, next_val):
         actor_losses = []   # for logging
         critic_losses = []  # for logging
         total_losses = []   # for logging
@@ -256,16 +263,16 @@ class PPO_Agent:
         state_arr, action_arr, old_log_probs_arr, val_arr, reward_arr, done_arr = self.memory.get_arrays()
         
         # skipping learning if too few samples
-        if len(state_arr) < 2:          
-            print(f"Skipping learning: only {len(state_arr)} samples, need at least 2")
-            self.memory.clear_memory()
-            return
+        # if len(state_arr) < 2:          
+        #     print(f"Skipping learning: only {len(state_arr)} samples, need at least 2")
+        #     self.memory.clear_memory()
+        #     return
         
         # Normalize rewards
         # reward_arr = (reward_arr - np.mean(reward_arr)) / (np.std(reward_arr) + 1e-8)
 
         # Compute advantage and returns
-        advantage, returns = self.calculate_advantage_and_returns(reward_arr, val_arr, done_arr)
+        advantage, returns = self.calculate_advantage_and_returns(reward_arr, val_arr, done_arr, next_val)
 
         for i in range(self.n_epochs):
             batches = self.memory.generate_batches()
