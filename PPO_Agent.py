@@ -63,7 +63,7 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=128, fc2_dims=128, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
@@ -71,6 +71,7 @@ class ActorNetwork(nn.Module):
         self.fc4 = nn.Linear(fc2_dims,fc1_dims )
         self.fc5 = nn.Linear(fc1_dims, n_actions)
         self.relu = nn.ReLU()
+        self.leaky_relu = nn.LeakyReLU()
         self.softmax = nn.Softmax(dim=-1)
         self.checkpoint_file = f'Data/Actor{chkpt}.pth'
         self.optimizer = optim.Adam(self.parameters(), lr=lr)       # without weight_decay
@@ -103,7 +104,7 @@ class ActorNetwork(nn.Module):
         return [param for sublist in params for param in sublist]  # Flatten the nested lists
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, lr, fc1_dims=128, fc2_dims=256, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
+    def __init__(self, input_dims, lr, fc1_dims=128, fc2_dims=128, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
         super(CriticNetwork, self).__init__()
 
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
@@ -112,7 +113,8 @@ class CriticNetwork(nn.Module):
         # self.fc3 = nn.Linear(fc2_dims, fc2_dims)
         self.fc4 = nn.Linear(fc2_dims, fc1_dims)
         self.fc5 = nn.Linear(fc1_dims, 1)
-        self.relu = nn.ReLU()  
+        self.relu = nn.ReLU()
+        self.leaky_relu = nn.LeakyReLU()  
         
         self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.scheduler = optim.lr_scheduler.StepLR(self.optimizer, step_size=optim_step, gamma=optim_gamma)
@@ -158,7 +160,7 @@ class PPO_Agent:
         self.skip = 0   # counter for skipping memmory
         self.learn_step = 0 # counter for number of learning
         self.entropy_coefficient = 0.1
-        self.entropy_coe_min = 0.01
+        self.entropy_coe_min = 0.001
         self.entropy_decay = 0.95         # Slower decay
         self.entropy_decay_steps = 50    # Less frequent decay
 
@@ -220,9 +222,9 @@ class PPO_Agent:
             
             # GAE advantage calculation
             if done_arr[t]:
-                future_advantage = 0.0
+                future_advantage = td_error
             else:
-                future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage * (1 - int(done_arr[t]))
+                future_advantage = td_error + self.gamma * self.gae_lambda * future_advantage 
             
             advantage[t] = future_advantage
             

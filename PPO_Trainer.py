@@ -58,10 +58,11 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''two enemies + next stage with same speed + 1024 steps with several dones + end of stage is done'''
+        self.remark = '''5 enemies'''
         self.scores = []
         self.losses = []
         self.avg_score = []
+        self.reward = 0             # for logging
     
     def wandb_init(self, remark):
         project_name = "Space_Invaders_PPO"
@@ -98,6 +99,8 @@ class Trainer:
                  'entropy_decay_steps': self.agent.entropy_decay_steps, 
                  "entropy_coefficient":self.agent.entropy_coefficient, 
                  'entropy_coe_min':self.agent.entropy_coe_min,
+                 'enemies': MAX_ENEMY_SHIPS,
+                 'max_ammunition': MAX_AMMUNITION
             }
         return WandB(project_name, self.chkpt, config, self.resume_wandb)
 
@@ -111,6 +114,7 @@ class Trainer:
         for epoch in range(self.start_epoch, self.epochs):
             self.env.restart()
             done = False
+            self.reward = 0
             state = self.env.state()        
             if self.env.level == 1:                 # clearing score after logging only when new_game
                 self.env.score = 0
@@ -120,6 +124,7 @@ class Trainer:
                 self.graphics.events()
                 action, log_prob, val = agent.choose_action(state)
                 reward, done = self.env.move(action=action)
+                self.reward += reward        # for logging
                 agent.remember(state, action, log_prob, val, reward, done)
                 self.step += 1
                 if self.step % self.n_steps == 0:
@@ -189,7 +194,8 @@ class Trainer:
             f'total_loss: {self.agent.total_loss:.5f}',
             f'actor_lr: {self.agent.actor.scheduler.get_last_lr()[0]:.5f} critic_lr: {self.agent.critic.scheduler.get_last_lr()[0]:.5f}',
             f'score: {self.env.score} level: {self.env.level}',
-            f'entropy_coefficient: {self.agent.entropy_coefficient}'
+            f'entropy_coefficient: {self.agent.entropy_coefficient:.4f}',
+            f'sum_reward: {self.reward:.3f}'
             
         )
         self.logger.log('actor_loss', self.agent.actor_loss)
@@ -202,7 +208,7 @@ class Trainer:
         self.logger.log('level', self.env.level)
         
         self.best_score = max(self.best_score, self.env.score)
-        # Log and compute average every 10 epochs
+        # Log and compute average every log_epoch
         if epoch % log_epoch == 0:
             self.scores.append(self.env.score)
             self.avg = sum(self.scores) / len(self.scores)
@@ -211,7 +217,7 @@ class Trainer:
             self.wandb(score = self.env.score, actor_loss = self.agent.actor_loss, critic_loss = self.agent.critic_loss,
                        total_loss = self.agent.total_loss, avg = self.avg, entropy = self.agent.entropy, 
                        advantage_mean = self.agent.advantage_mean, advantage_std = self.agent.advantage_std,
-                       advantage_norm = self.agent.advantage_norm )
+                       advantage_norm = self.agent.advantage_norm, reward = self.reward )
             self.wandb.log()
 
 class WandB:
@@ -266,5 +272,8 @@ class Logger:
 
 if __name__ == "__main__":
     # Start the training process
-    trainer = Trainer(chkpt=431)
+    chkpt = torch.load('Data/train_number')
+    chkpt+=1
+    torch.save(chkpt, 'Data/train_number')
+    trainer = Trainer(chkpt)
     trainer.train()

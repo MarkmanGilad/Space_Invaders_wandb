@@ -36,11 +36,12 @@ class Environment:
 
     def init_rewards (self):
         self.game_reward = -2
-        self.stage_reward = 2
+        self.stage_reward = 20
         self.hit_reward = 1
-        self.amunition_reward = -0.001
+        self.amunition_reward = -0.005
         self.misile_above_reward = -0.00
         self.delta = 7.5  # width of spaceship / 2
+        self.survival_reward = 0.1
 
     def make_enemy_group (self, row=ENEMY_ROWS, col=ENEMY_COLS, space_row = 80, space_col = 120, speed = ENEMY_START_SPEED):
         enemy_Group = pygame.sprite.Group()
@@ -50,7 +51,7 @@ class Environment:
         #     for c in range (col):
         #         enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
         all_enemies = [(x, y) for x in range(4) for y in range(7)]
-        sample_enemies = random.sample(all_enemies, 2)
+        sample_enemies = random.sample(all_enemies, MAX_ENEMY_SHIPS)
         for r, c in sample_enemies:
             enemy_Group.add(Enemy(self.enemy_img, (c * space_col, r * space_row, ), self.enemy_bullets_Group,speed=speed))
         return enemy_Group
@@ -83,7 +84,7 @@ class Environment:
         self.end_of_stage = False
         self.end_of_game = False      
         self.hit = 0  
-        self.spaceship.ammunition = MAX_AMMUNITION
+        # self.spaceship.ammunition = MAX_AMMUNITION
         self.enemy_bullets_Group.empty()    
     
 
@@ -131,7 +132,8 @@ class Environment:
 
         # 5) Build your reward for THIS step
         #    - reward for any hits that happened this step
-        reward = hits_now * self.hit_reward 
+        reward += hits_now * self.hit_reward 
+        reward += self.survival_reward * (self.level - 1)
 
         #    - if stage ended this step, add stage-complete reward
         if self.end_of_stage:
