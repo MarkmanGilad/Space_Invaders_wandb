@@ -58,7 +58,7 @@ class Trainer:
         self.save_epoch = 1000
         self.best_score = 0
         self.avg = 0
-        self.remark = '''5 enemies'''
+        self.remark = '''5 enemies 150 bullets for game'''
         self.scores = []
         self.losses = []
         self.avg_score = []

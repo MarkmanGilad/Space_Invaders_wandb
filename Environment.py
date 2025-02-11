@@ -38,7 +38,7 @@ class Environment:
         self.game_reward = -2
         self.stage_reward = 20
         self.hit_reward = 1
-        self.amunition_reward = -0.005
+        self.amunition_reward = -0.1
         self.misile_above_reward = -0.00
         self.delta = 7.5  # width of spaceship / 2
         self.survival_reward = 0.1

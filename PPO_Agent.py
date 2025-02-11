@@ -63,7 +63,7 @@ class PPOMemory:
         self.vals = []
 
 class ActorNetwork(nn.Module):
-    def __init__(self, input_dims, n_actions, lr, fc1_dims=128, fc2_dims=128, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
+    def __init__(self, input_dims, n_actions, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, logger = None, weight_decay = 1e-4):
         super(ActorNetwork, self).__init__()
         self.fc1 = nn.Linear(input_dims, fc1_dims)
         self.fc2 = nn.Linear(fc1_dims, fc2_dims)
@@ -104,7 +104,7 @@ class ActorNetwork(nn.Module):
         return [param for sublist in params for param in sublist]  # Flatten the nested lists
 
 class CriticNetwork(nn.Module):
-    def __init__(self, input_dims, lr, fc1_dims=128, fc2_dims=128, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
+    def __init__(self, input_dims, lr, fc1_dims=256, fc2_dims=512, chkpt=1, optim_step = 100, optim_gamma = 0.9, weight_decay = 1e-4):
         super(CriticNetwork, self).__init__()
 
         self.checkpoint_file = f'Data/Critic{chkpt}.pth'
@@ -162,7 +162,7 @@ class PPO_Agent:
         self.entropy_coefficient = 0.1
         self.entropy_coe_min = 0.001
         self.entropy_decay = 0.95         # Slower decay
-        self.entropy_decay_steps = 50    # Less frequent decay
+        self.entropy_decay_steps = 500    # Less frequent decay
 
         self.actor = ActorNetwork(input_dims, n_actions, self.lr_actor, chkpt=chkpt, optim_step=self.optim_step, 
                                   optim_gamma=self.optim_gamma, logger=self.logger, weight_decay=self.weight_decay)
