@@ -12,6 +12,7 @@ name = "downloadpytorch"
 torch = {version = "*", index = "downloadpytorch"}
 pygame = "*"
 wandb = "*"
+numpy = "*"
 
 [dev-packages]
 ipykernel = "*"
